@@ -51,7 +51,7 @@ public sealed partial class MainWindow : Window
         ApplyTheme(ConfigManager.Settings.ThemeMode);
 
         // Listen for system theme changes when in Auto mode
-        Microsoft.UI.ViewManagement.UISettings uiSettings = new();
+        Windows.UI.ViewManagement.UISettings uiSettings = new();
         uiSettings.ColorValuesChanged += (s, e) =>
         {
             if (ConfigManager.Settings.ThemeMode == "auto")

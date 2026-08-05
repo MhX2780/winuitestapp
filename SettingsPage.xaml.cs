@@ -5,15 +5,6 @@ using System.Runtime.InteropServices;
 
 namespace AdvaBrowser;
 
-// WinRT interop for FolderPicker - desktop window association
-[ComImport]
-[Guid("79c084eb-0b6e-4e39-a787-5a99b9b53019")]
-[InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
-internal interface IInitializeWithWindow
-{
-    void Initialize(IntPtr hwnd);
-}
-
 public sealed partial class SettingsPage : Page
 {
     public SettingsPage()
@@ -146,8 +137,35 @@ public sealed partial class SettingsPage : Page
             };
             picker.FileTypeFilter.Add("*");
 
-            CrashLogger.Log("INFO", "Browse_Click: FolderPicker created, calling IInitializeWithWindow");
-            ((IInitializeWithWindow)(object)picker).Initialize(hwnd);
+            CrashLogger.Log("INFO", "Browse_Click: FolderPicker created, initializing window");
+
+            // Use reflection to call IInitializeWithWindow.Initialize to avoid
+            // CS0030: local IInitializeWithWindow conflicts with FolderPicker's implementation
+            try
+            {
+                var iidType = picker.GetType().GetInterface("IInitializeWithWindow");
+                if (iidType != null)
+                {
+                    iidType.GetMethod("Initialize")?.Invoke(picker, new object[] { hwnd });
+                    CrashLogger.Log("INFO", "IInitializeWithWindow.Initialize called via reflection");
+                }
+                else
+                {
+                    CrashLogger.Log("WARN", "IInitializeWithWindow not found on FolderPicker, trying direct Win32 fallback");
+                    selectedPath = BrowseForFolderWin32();
+                    WorkspaceBox.Text = selectedPath ?? "";
+                    UpdateWsStatus();
+                    return;
+                }
+            }
+            catch (Exception initEx)
+            {
+                CrashLogger.Log("WARN", $"IInitializeWithWindow failed: {initEx.Message}, trying Win32 fallback");
+                selectedPath = BrowseForFolderWin32();
+                WorkspaceBox.Text = selectedPath ?? "";
+                UpdateWsStatus();
+                return;
+            }
 
             CrashLogger.Log("INFO", "Browse_Click: Calling PickSingleFolderAsync");
             var folder = await picker.PickSingleFolderAsync();

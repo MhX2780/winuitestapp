@@ -602,7 +602,7 @@ public static class ToolExecutor
             Req("archive_path", "string", "archive path"), Opt("destination", "string", "extract destination")),
         Tool("zip_workspace", "Zips the workspace.",
             Opt("output_path", "string", "output filename")),
-        Tool("undo_last_change", "Reverts the most recent file change.", ),
+        Tool("undo_last_change", "Reverts the most recent file change."),
         Tool("check_port_in_use", "Checks if a port is in use.",
             Opt("port", "string", "port number")),
         Tool("env_var_check", "Checks an environment variable.",

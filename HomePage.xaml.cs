@@ -71,6 +71,42 @@ public sealed partial class HomePage : Page
         MemoryManager.LogMessage("system", "New chat started");
     }
 
+    private async Task<bool> ShowApiKeyDialog()
+    {
+        InputTextBox.IsEnabled = false;
+        SendButton.IsEnabled = false;
+
+        var pwd = new PasswordBox { PlaceholderText = "Enter Gemini API Key..." };
+        var panel = new StackPanel { Spacing = 8 };
+        panel.Children.Add(new TextBlock
+        {
+            Text = "Enter your Gemini API key to start chatting.",
+            Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.White)
+        });
+        panel.Children.Add(pwd);
+
+        var dlg = new ContentDialog
+        {
+            Title = "API Key Required",
+            Content = panel,
+            PrimaryButtonText = "Save & Send",
+            CloseButtonText = "Cancel",
+            XamlRoot = XamlRoot,
+        };
+
+        var result = await dlg.ShowAsync();
+        InputTextBox.IsEnabled = true;
+        SendButton.IsEnabled = true;
+
+        if (result == ContentDialogResult.Primary && !string.IsNullOrWhiteSpace(pwd.Password))
+        {
+            ConfigManager.SaveApiKey(pwd.Password);
+            _service = new GeminiService();
+            return true;
+        }
+        return false;
+    }
+
     private async void Undo_Click(object sender, RoutedEventArgs e)
     {
         try
@@ -94,39 +130,9 @@ public sealed partial class HomePage : Page
         // Check API key — show dialog if missing
         if (!ConfigManager.HasApiKey)
         {
-            InputTextBox.IsEnabled = false;
-            SendButton.IsEnabled = false;
-
-            var pwd = new PasswordBox { PlaceholderText = "Enter Gemini API Key..." };
-            var panel = new StackPanel { Spacing = 8 };
-            panel.Children.Add(new TextBlock
-            {
-                Text = "Enter your Gemini API key to start chatting.",
-                Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.White)
-            });
-            panel.Children.Add(pwd);
-
-            var dlg = new ContentDialog
-            {
-                Title = "API Key Required",
-                Content = panel,
-                PrimaryButtonText = "Save & Send",
-                CloseButtonText = "Cancel",
-                XamlRoot = XamlRoot,
-            };
-
-            var result = await dlg.ShowAsync();
-            InputTextBox.IsEnabled = true;
-            SendButton.IsEnabled = true;
-
-            if (result == ContentDialogResult.Primary && !string.IsNullOrWhiteSpace(pwd.Password))
-            {
-                ConfigManager.SaveApiKey(pwd.Password);
-                _service = new GeminiService();
-                // Re-send with the same text (saved above)
-                await SendMessageAsync();
-            }
-            return;
+            var keyEntered = await ShowApiKeyDialog();
+            if (!keyEntered) return;
+            // Key is now saved, proceed with send
         }
 
         // Clear input and show user message in chat
@@ -167,8 +173,8 @@ public sealed partial class HomePage : Page
                 .Where(m => !(m.Role == "user" && m.Content == text)) // exclude current message
                 .Select(m => new Dictionary<string, object>
                 {
-                    { "role", m.Role },
-                    { "parts", new[] { new { text = m.Content } } }
+                    { "role", (object)m.Role },
+                    { "parts", (object)new List<object> { new Dictionary<string, object> { { "text", (object?)m.Content ?? "" } } } }
                 }).ToList();
 
             System.Diagnostics.Debug.WriteLine($"[UGA] Sending message, history={history.Count}, text={text.Length}");

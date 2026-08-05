@@ -1,16 +1,17 @@
 using System.Runtime.InteropServices;
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Dispatching;
 
 namespace AdvaBrowser;
 
 /// <summary>
 /// Cursor helper for WinUI 3 Desktop.
-/// ProtectedCursor is protected, so we use WinRT CoreWindow.PointerCursor.
-/// Falls back to Win32 SetCursor if CoreWindow is unavailable.
+/// ProtectedCursor is protected in WinUI 3, so we use a DispatcherQueueTimer
+/// that continuously sets the Win32 cursor at 60fps while the pointer is over the element.
+/// This defeats WinUI 3's continuous cursor reset.
 /// </summary>
 public static class CursorHelper
 {
-    // Win32 fallback
     [DllImport("user32.dll", SetLastError = true)]
     private static extern IntPtr SetCursor(IntPtr hCursor);
 
@@ -21,51 +22,33 @@ public static class CursorHelper
     private static readonly IntPtr ArrowCursor = LoadCursor(IntPtr.Zero, 32512); // IDC_ARROW
 
     /// <summary>
-    /// Sets the global pointer cursor to a hand shape.
-    /// </summary>
-    public static void SetHand()
-    {
-        // Try CoreWindow first (WinRT way — persists properly)
-        try
-        {
-            var coreWindow = Windows.UI.Core.CoreWindow.GetForCurrentThread();
-            if (coreWindow != null)
-            {
-                coreWindow.PointerCursor = new Windows.UI.Core.CoreCursor(Windows.UI.Core.CoreCursorType.Hand, 0);
-                return;
-            }
-        }
-        catch { }
-
-        // Fallback to Win32 SetCursor
-        SetCursor(HandCursor);
-    }
-
-    /// <summary>
-    /// Sets the global pointer cursor back to arrow.
-    /// </summary>
-    public static void SetArrow()
-    {
-        try
-        {
-            var coreWindow = Windows.UI.Core.CoreWindow.GetForCurrentThread();
-            if (coreWindow != null)
-            {
-                coreWindow.PointerCursor = new Windows.UI.Core.CoreCursor(Windows.UI.Core.CoreCursorType.Arrow, 0);
-                return;
-            }
-        }
-        catch { }
-
-        SetCursor(ArrowCursor);
-    }
-
-    /// <summary>
-    /// Attaches hand/arrow cursor to a UIElement via PointerEntered/PointerExited.
+    /// Attaches a hand cursor to a UIElement. Uses a DispatcherQueueTimer at 60fps
+    /// to continuously override WinUI 3's cursor reset behavior.
     /// </summary>
     public static void SetHandOn(UIElement el)
     {
-        el.PointerEntered += (_, _) => SetHand();
-        el.PointerExited += (_, _) => SetArrow();
+        DispatcherQueueTimer? timer = null;
+
+        el.PointerEntered += (_, _) =>
+        {
+            SetCursor(HandCursor);
+            // Start a 60fps timer to keep resetting cursor while hovering
+            var dq = el.DispatcherQueue;
+            if (dq != null && dq.HasThreadAccess)
+            {
+                timer = dq.CreateTimer();
+                timer.Interval = TimeSpan.FromMilliseconds(16);
+                timer.IsRepeating = true;
+                timer.Tick += (_, _) => SetCursor(HandCursor);
+                timer.Start();
+            }
+        };
+
+        el.PointerExited += (_, _) =>
+        {
+            timer?.Stop();
+            timer = null;
+            SetCursor(ArrowCursor);
+        };
     }
 }

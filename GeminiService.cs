@@ -78,8 +78,6 @@ public class GeminiService : IDisposable
 
             // Non-streaming call to check for tool calls
             var body = BuildRequestBody(history, sysPrompt);
-            var serializedBody = JsonConvert.SerializeObject(body);
-            System.Diagnostics.Debug.WriteLine($"[Gemini] Request body length={serializedBody.Length}");
 
             var respJson = await PostGenerate(body, ct);
             System.Diagnostics.Debug.WriteLine($"[Gemini] Response length={respJson?.Length ?? 0}");
@@ -160,18 +158,14 @@ public class GeminiService : IDisposable
             rounds++;
             System.Diagnostics.Debug.WriteLine($"[Gemini] Tool round {rounds}");
 
-            // Add model's response to history — convert via JSON round-trip to avoid JObject mixing
+            // Add model's response to history — deep-convert to plain .NET types
             var contentToken = respObj["candidates"]?[0]?["content"];
             if (contentToken != null)
             {
                 try
                 {
-                    var contentJson = contentToken.ToString();
-                    var contentDict = JsonConvert.DeserializeObject<Dictionary<string, object>>(contentJson);
-                    if (contentDict != null)
-                        history.Add(contentDict);
-                    else
-                        history.Add(new Dictionary<string, object> { { "role", "model" }, { "parts", new List<object>() } });
+                    var contentDict = DeepConvertJToken(contentToken);
+                    history.Add(contentDict);
                 }
                 catch (Exception ex)
                 {
@@ -258,11 +252,21 @@ public class GeminiService : IDisposable
     private async Task<string> PostGenerate(object body, CancellationToken ct)
     {
         var url = $"{BASE}{Uri.EscapeDataString(CurrentModel)}:generateContent?key={ApiKey}";
-        var json = JsonConvert.SerializeObject(body);
-        var content = new StringContent(json);
-        content.Headers.ContentType = new MediaTypeHeaderValue("application/json");
+        string json;
+        try
+        {
+            json = JsonConvert.SerializeObject(body);
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[Gemini] Serialization failed: {ex.Message}");
+            throw new Exception($"Failed to serialize request body: {ex.Message}");
+        }
 
         System.Diagnostics.Debug.WriteLine($"[Gemini] POST to {CurrentModel}, body length={json.Length}");
+
+        var content = new StringContent(json);
+        content.Headers.ContentType = new MediaTypeHeaderValue("application/json");
 
         var resp = await _http.PostAsync(url, content, ct);
         if (!resp.IsSuccessStatusCode)
@@ -277,15 +281,29 @@ public class GeminiService : IDisposable
     private Dictionary<string, object> BuildRequestBody(List<Dictionary<string, object>> history, string sysPrompt)
     {
         var toolsEnabled = true;
+        var sysInstruction = new Dictionary<string, object>
+        {
+            { "parts", new List<object> { new Dictionary<string, object> { { "text", (object)sysPrompt } } } }
+        };
+        var genConfig = new Dictionary<string, object>
+        {
+            { "temperature", (object)1.0 },
+            { "topP", (object)0.95 },
+            { "maxOutputTokens", (object)65536 }
+        };
         var body = new Dictionary<string, object>
         {
-            { "contents", history },
-            { "systemInstruction", new Dictionary<string, object> { { "parts", new[] { new { text = sysPrompt } } } } },
-            { "generationConfig", new Dictionary<string, object> { { "temperature", 1.0 }, { "topP", 0.95 }, { "maxOutputTokens", 65536 } } },
+            { "contents", (object)history },
+            { "systemInstruction", (object)sysInstruction },
+            { "generationConfig", (object)genConfig },
         };
         if (toolsEnabled)
         {
-            body["tools"] = new[] { new { functionDeclarations = ToolExecutor.GetToolDefinitions() } };
+            var toolsEntry = new Dictionary<string, object>
+            {
+                { "functionDeclarations", (object)ToolExecutor.GetToolDefinitions() }
+            };
+            body["tools"] = (object)new List<object> { toolsEntry };
         }
         return body;
     }
@@ -298,8 +316,52 @@ public class GeminiService : IDisposable
     private static bool HasFunctionCall(List<JObject> parts) => parts.Any(p => p.ContainsKey("functionCall"));
     private static List<JObject> GetFunctionCalls(List<JObject> parts) => parts.Where(p => p.ContainsKey("functionCall")).Select(p => p["functionCall"]!.ToObject<JObject>()!).ToList();
     private static string ExtractText(List<JObject> parts) => string.Join("", parts.Where(p => p.ContainsKey("text")).Select(p => p["text"]?.ToString() ?? ""));
-    private static Dictionary<string, object> MakeUserContent(string text) => new() { { "role", "user" }, { "parts", new[] { new { text } } } };
-    private static Dictionary<string, object> MakeModelContent(string text) => new() { { "role", "model" }, { "parts", new[] { new { text } } } };
+
+    /// <summary>
+    /// Deep-converts a JToken to plain .NET types (Dictionary, List, or primitives).
+    /// Prevents mixing JToken-derived types with plain dictionaries in history,
+    /// which can cause stack overflow during JsonConvert.SerializeObject re-serialization.
+    /// </summary>
+    private static Dictionary<string, object> DeepConvertJToken(JToken token)
+    {
+        var dict = new Dictionary<string, object>();
+        if (token is JObject obj)
+        {
+            foreach (var prop in obj.Properties())
+            {
+                dict[prop.Name] = DeepConvertValue(prop.Value);
+            }
+        }
+        return dict;
+    }
+
+    private static object DeepConvertValue(JToken value)
+    {
+        if (value == null || value.Type == JTokenType.Null)
+            return "";
+        if (value is JValue jval)
+            return jval.Value ?? "";
+        if (value is JObject jobj)
+            return DeepConvertJToken(jobj);
+        if (value is JArray jarr)
+        {
+            var list = new List<object>();
+            foreach (var item in jarr)
+                list.Add(DeepConvertValue(item));
+            return list;
+        }
+        return value.ToString();
+    }
+    private static Dictionary<string, object> MakeUserContent(string text) => new()
+    {
+        { "role", "user" },
+        { "parts", new List<object> { new Dictionary<string, object> { { "text", (object?)text ?? "" } } } }
+    };
+    private static Dictionary<string, object> MakeModelContent(string text) => new()
+    {
+        { "role", "model" },
+        { "parts", new List<object> { new Dictionary<string, object> { { "text", (object?)text ?? "" } } } }
+    };
 
     public void Dispose() => _http.Dispose();
 }
@@ -336,7 +398,7 @@ public class MultiAgentOrchestrator
 
         for (int i = 0; i < steps.Count; i++)
         {
-            yield return new() { Kind = "step_start", Data = new() { ["step_number"] = i + 1, "total_steps"] = steps.Count, ["description"] = steps[i] } };
+            yield return new() { Kind = "step_start", Data = new() { ["step_number"] = i + 1, ["total_steps"] = (object)steps.Count, ["description"] = (object)steps[i] } };
             yield return new() { Kind = "step_done", Data = new() { ["step_number"] = i + 1 } };
         }
 

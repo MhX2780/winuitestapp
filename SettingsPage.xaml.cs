@@ -115,18 +115,35 @@ public sealed partial class SettingsPage : Page
 
     private async void Browse_Click(object sender, RoutedEventArgs e)
     {
-        var picker = new FolderPicker
+        try
         {
-            SuggestedStartLocation = PickerLocationId.DocumentsLibrary
-        };
-        picker.FileTypeFilter.Add("*");
-        var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(App.MainWindow);
-        ((IInitializeWithWindow)(object)picker).Initialize(hwnd);
-        var folder = await picker.PickSingleFolderAsync();
-        if (folder != null)
+            var picker = new FolderPicker
+            {
+                SuggestedStartLocation = PickerLocationId.DocumentsLibrary
+            };
+            picker.FileTypeFilter.Add("*");
+
+            var mainWindow = App.MainWindow;
+            if (mainWindow == null)
+            {
+                WorkspaceStatus.Text = "Error: Main window not available.";
+                return;
+            }
+
+            var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(mainWindow);
+            ((IInitializeWithWindow)(object)picker).Initialize(hwnd);
+
+            var folder = await picker.PickSingleFolderAsync();
+            if (folder != null)
+            {
+                WorkspaceBox.Text = folder.Path;
+                UpdateWsStatus();
+            }
+        }
+        catch (Exception ex)
         {
-            WorkspaceBox.Text = folder.Path;
-            UpdateWsStatus();
+            System.Diagnostics.Debug.WriteLine($"[Settings] FolderPicker error: {ex.Message}");
+            WorkspaceStatus.Text = $"Error: {ex.Message}";
         }
     }
 

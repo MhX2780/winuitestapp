@@ -16,6 +16,7 @@ public sealed partial class HomePage : Page
     {
         this.InitializeComponent();
         UpdateVisibility();
+        SetupHandCursors();
     }
 
     private void UpdateVisibility()
@@ -24,14 +25,33 @@ public sealed partial class HomePage : Page
         ChatListView.Visibility = _messages.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
     }
 
+    private void SetupHandCursors()
+    {
+        SetHand(SendButton);
+        SetHand(UndoButton);
+        SetHand(ClearButton);
+        SetHand(NewChatButton);
+    }
+
+    /// <summary>
+    /// Sets pointer hand cursor on enter, reverts on leave.
+    /// Uses ProtectedCursor (WindowsAppSDK 1.3+).
+    /// </summary>
+    private static void SetHand(UIElement el)
+    {
+        el.PointerEntered += (_, _) => el.ProtectedCursor = InputSystemCursor.Create(InputSystemCursorShape.Hand);
+        el.PointerExited += (_, _) => el.ProtectedCursor = null;
+    }
+
     private void InputTextBox_KeyDown(object sender, KeyRoutedEventArgs e)
     {
-        if (e.Key == Windows.System.VirtualKey.Enter)
-        {
-            var ctrl = InputKeyboardSource.GetKeyStateForCurrentThread(Windows.System.VirtualKey.Control)
-                .HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down);
-            if (ctrl) { e.Handled = true; _ = SendMessageAsync(); }
-        }
+        // Handled via KeyboardAccelerator (CtrlEnter_Invoked) for reliable Ctrl+Enter
+    }
+
+    private void CtrlEnter_Invoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args)
+    {
+        args.Handled = true;
+        _ = SendMessageAsync();
     }
 
     private void SendButton_Click(object sender, RoutedEventArgs e) => _ = SendMessageAsync();

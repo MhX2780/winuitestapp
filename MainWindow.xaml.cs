@@ -1,4 +1,5 @@
 using Microsoft.UI;
+using Microsoft.UI.Input;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
@@ -55,6 +56,24 @@ public sealed partial class MainWindow : Window
     {
         RootNav.SelectedItem = RootNav.MenuItems[0];
         Navigate("home");
+        SetupNavCursors();
+    }
+
+    private void SetupNavCursors()
+    {
+        // Hand cursor on all NavigationView menu items
+        foreach (NavigationViewItem item in RootNav.MenuItems)
+            SetHand(item);
+        foreach (NavigationViewItem item in RootNav.FooterMenuItems)
+            SetHand(item);
+        // Pane toggle button (hamburger)
+        SetHand(RootNav.PaneToggleButton);
+    }
+
+    private static void SetHand(UIElement el)
+    {
+        el.PointerEntered += (_, _) => el.ProtectedCursor = InputSystemCursor.Create(InputSystemCursorShape.Hand);
+        el.PointerExited += (_, _) => el.ProtectedCursor = null;
     }
 
     private void RootNav_SelectionChanged(NavigationView sender, NavigationViewSelectionChangedEventArgs args)

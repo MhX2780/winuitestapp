@@ -1,3 +1,4 @@
+using Microsoft.UI.Input;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Windows.Storage.Pickers;
@@ -20,6 +21,40 @@ public sealed partial class SettingsPage : Page
     {
         this.InitializeComponent();
         LoadUI();
+        SetupHandCursors();
+    }
+
+    private void SetupHandCursors()
+    {
+        // Buttons
+        SetHand(SaveKeyButton);
+        SetHand(ResetKeyButton);
+        SetHand(BrowseButton);
+        SetHand(SaveAllButton);
+        SetHand(ResetDefaultsButton);
+        // ComboBoxes
+        SetHand(ModelCombo);
+        SetHand(ClassifierCombo);
+        SetHand(PlannerCombo);
+        SetHand(ExecutorCombo);
+        SetHand(ReviewerCombo);
+        // ToggleSwitches
+        SetHand(FileTools);
+        SetHand(SearchTools);
+        SetHand(GitTools);
+        SetHand(ExecTools);
+        SetHand(CodeTools);
+        SetHand(NetworkTools);
+        SetHand(SystemTools);
+        SetHand(MultiAgent);
+        SetHand(DeepThinking);
+        SetHand(ThinkInclude);
+    }
+
+    private static void SetHand(UIElement el)
+    {
+        el.PointerEntered += (_, _) => el.ProtectedCursor = InputSystemCursor.Create(InputSystemCursorShape.Hand);
+        el.PointerExited += (_, _) => el.ProtectedCursor = null;
     }
 
     private void LoadUI()

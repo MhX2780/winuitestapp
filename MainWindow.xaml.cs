@@ -50,16 +50,20 @@ public sealed partial class MainWindow : Window
     }
 
     /// <summary>
-    /// Shows loading screen first, then navigates to chat after init.
+    /// Shows loading screen first, then navigates to chat after init completes.
     /// </summary>
     public void NavigateToLoading()
     {
+        LoadingPage.LoadingComplete -= OnLoadingComplete;
+        LoadingPage.LoadingComplete += OnLoadingComplete;
         ContentFrame.Navigate(typeof(LoadingPage));
+    }
 
-        // Simulate init delay then navigate to chat
-        DispatcherQueue.TryEnqueue(async () =>
+    private void OnLoadingComplete(object? sender, EventArgs e)
+    {
+        LoadingPage.LoadingComplete -= OnLoadingComplete;
+        DispatcherQueue.TryEnqueue(() =>
         {
-            await System.Threading.Tasks.Task.Delay(800);
             ContentFrame.Navigate(typeof(HomePage));
         });
     }
@@ -74,7 +78,7 @@ public sealed partial class MainWindow : Window
     {
         if (args.SelectedItemContainer is NavigationViewItem item && item.Tag is string tag)
         {
-            if (tag is "undo" or "clear" or "newchat" or "theme")
+            if (tag is "undo" or "clear" or "newchat" or "theme" or "history")
             {
                 _ = HandleNavActionAsync(tag);
                 RootNav.SelectedItem = RootNav.MenuItems[0];
@@ -91,6 +95,13 @@ public sealed partial class MainWindow : Window
         if (action == "theme")
         {
             ToggleTheme();
+            return;
+        }
+
+        if (action == "history")
+        {
+            if (ContentFrame.Content is HomePage hp)
+                hp.ShowChatHistory();
             return;
         }
 
@@ -144,13 +155,25 @@ public sealed partial class MainWindow : Window
     {
         if (dark)
         {
+            AppWindow.TitleBar.ButtonBackgroundColor = Windows.UI.Color.FromArgb(0, 0, 0, 0);
             AppWindow.TitleBar.ButtonForegroundColor = Windows.UI.Color.FromArgb(255, 255, 255, 255);
+            AppWindow.TitleBar.ButtonInactiveBackgroundColor = Windows.UI.Color.FromArgb(0, 0, 0, 0);
             AppWindow.TitleBar.ButtonInactiveForegroundColor = Windows.UI.Color.FromArgb(128, 255, 255, 255);
+            AppWindow.TitleBar.ButtonHoverBackgroundColor = Windows.UI.Color.FromArgb(40, 255, 255, 255);
+            AppWindow.TitleBar.ButtonHoverForegroundColor = Windows.UI.Color.FromArgb(255, 255, 255, 255);
+            AppWindow.TitleBar.ButtonPressedBackgroundColor = Windows.UI.Color.FromArgb(80, 255, 255, 255);
+            AppWindow.TitleBar.ButtonPressedForegroundColor = Windows.UI.Color.FromArgb(255, 255, 255, 255);
         }
         else
         {
+            AppWindow.TitleBar.ButtonBackgroundColor = Windows.UI.Color.FromArgb(0, 0, 0, 0);
             AppWindow.TitleBar.ButtonForegroundColor = Windows.UI.Color.FromArgb(255, 0, 0, 0);
+            AppWindow.TitleBar.ButtonInactiveBackgroundColor = Windows.UI.Color.FromArgb(0, 0, 0, 0);
             AppWindow.TitleBar.ButtonInactiveForegroundColor = Windows.UI.Color.FromArgb(128, 0, 0, 0);
+            AppWindow.TitleBar.ButtonHoverBackgroundColor = Windows.UI.Color.FromArgb(40, 0, 0, 0);
+            AppWindow.TitleBar.ButtonHoverForegroundColor = Windows.UI.Color.FromArgb(255, 0, 0, 0);
+            AppWindow.TitleBar.ButtonPressedBackgroundColor = Windows.UI.Color.FromArgb(80, 0, 0, 0);
+            AppWindow.TitleBar.ButtonPressedForegroundColor = Windows.UI.Color.FromArgb(255, 0, 0, 0);
         }
     }
 

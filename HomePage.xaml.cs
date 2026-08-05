@@ -31,6 +31,17 @@ public sealed partial class HomePage : Page
     /// </summary>
     private void ModelRichText_Loaded(object sender, RoutedEventArgs e)
     {
+        RenderMarkdown(sender);
+    }
+
+    private void ModelRichText_DataContextChanged(FrameworkElement sender, DataContextChangedEventArgs e)
+    {
+        if (e.NewValue != null)
+            RenderMarkdown(sender);
+    }
+
+    private void RenderMarkdown(object sender)
+    {
         if (sender is RichTextBlock rtb && rtb.DataContext is ChatMessage msg)
         {
             rtb.Blocks.Clear();
@@ -69,9 +80,123 @@ public sealed partial class HomePage : Page
 
     public void ExecuteNewChat()
     {
+        // Archive current chat before clearing
+        ArchiveCurrentChat();
         ExecuteClearChat();
         MemoryManager.ClearExecutionLog();
         MemoryManager.LogMessage("system", "New chat started");
+    }
+
+    private void ArchiveCurrentChat()
+    {
+        if (_messages.Count == 0) return;
+        try
+        {
+            var sessions = ConfigManager.GetChatSessionFiles();
+            var ts = DateTime.Now.ToString("yyyyMMdd_HHmmss");
+            var archivePath = Path.Combine(ConfigManager.ChatHistoryDir, $"chat_{ts}.json");
+            // Get first user message as preview
+            var preview = _messages.FirstOrDefault(m => m.Role == "user")?.Content ?? "";
+            if (preview.Length > 50) preview = preview[..50] + "...";
+            var json = JsonConvert.SerializeObject(_messages, Formatting.Indented);
+            File.WriteAllText(archivePath, json);
+            CrashLogger.Log("INFO", $"Chat archived: {archivePath}");
+        }
+        catch (Exception ex)
+        {
+            CrashLogger.Log("WARN", $"Failed to archive chat: {ex.Message}");
+        }
+    }
+
+    public async void ShowChatHistory()
+    {
+        var sessions = ConfigManager.GetChatSessionFiles();
+        var panel = new StackPanel { Spacing = 8 };
+
+        if (sessions.Count == 0)
+        {
+            panel.Children.Add(new TextBlock { Text = "No previous chat sessions found.", Opacity = 0.7 });
+        }
+        else
+        {
+            var listView = new ListView
+            {
+                SelectionMode = ListViewSelectionMode.Single,
+                MinHeight = 200,
+                MaxHeight = 400,
+                Width = 500,
+                HorizontalAlignment = HorizontalAlignment.Stretch,
+            };
+
+            foreach (var filePath in sessions.OrderByDescending(f => f))
+            {
+                var fileName = Path.GetFileNameWithoutExtension(filePath);
+                var display = fileName.Replace("chat_", "").Replace("_", " ");
+                // Try to get preview
+                string preview = "";
+                try
+                {
+                    var chatJson = File.ReadAllText(filePath);
+                    var msgs = JsonConvert.DeserializeObject<List<ChatMessage>>(chatJson);
+                    var first = msgs?.FirstOrDefault(m => m.Role == "user");
+                    if (first != null)
+                    {
+                        preview = first.Content ?? "";
+                        if (preview.Length > 60) preview = preview[..60] + "...";
+                        preview = $" — \"{preview}\"";
+                    }
+                }
+                catch { }
+
+                listView.Items.Add(new TextBlock
+                {
+                    Text = display + preview,
+                    FontSize = 14,
+                    Tag = filePath,
+                });
+            }
+
+            panel.Children.Add(new TextBlock { Text = "Select a chat session to load:", FontWeight = Microsoft.UI.Text.FontWeights.SemiBold });
+            panel.Children.Add(listView);
+        }
+
+        var dlg = new ContentDialog
+        {
+            Title = "Chat History",
+            Content = panel,
+            PrimaryButtonText = sessions.Count > 0 ? "Load Selected" : "Close",
+            CloseButtonText = "Cancel",
+            DefaultButton = sessions.Count > 0 ? ContentDialogButton.Primary : ContentDialogButton.Close,
+            XamlRoot = XamlRoot,
+        };
+
+        var result = await dlg.ShowAsync();
+        if (result == ContentDialogResult.Primary && sessions.Count > 0)
+        {
+            // Find selected item
+            var selectedListView = panel.Children.OfType<ListView>().FirstOrDefault();
+            if (selectedListView?.SelectedItem is TextBlock tb && tb.Tag is string selectedPath)
+            {
+                try
+                {
+                    var json = File.ReadAllText(selectedPath);
+                    var msgs = JsonConvert.DeserializeObject<List<ChatMessage>>(json);
+                    if (msgs != null)
+                    {
+                        _messages.Clear();
+                        _messages.AddRange(msgs);
+                        SaveChatHistory();
+                        Bind();
+                        ScrollBottom();
+                        CrashLogger.Log("INFO", $"Loaded chat session: {selectedPath}");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    CrashLogger.Log("ERROR", $"Failed to load session: {ex.Message}");
+                }
+            }
+        }
     }
 
     // Chat history persistence
@@ -203,6 +328,7 @@ public sealed partial class HomePage : Page
         TaskbarProgress.SetIndeterminate();
 
         _service ??= new GeminiService();
+        ModelStatusText.Text = $"[{_service.CurrentModel}]";
 
         _service.OnTokenReceived -= OnToken;
         _service.OnToolCallStarted -= OnToolStart;
@@ -268,6 +394,7 @@ public sealed partial class HomePage : Page
         DispatcherQueue.TryEnqueue(() =>
         {
             StatusText.Text = $"Switched to {model}";
+            ModelStatusText.Text = $"[{model}]";
         });
     }
 

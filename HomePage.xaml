@@ -16,6 +16,9 @@
             <StackPanel Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
                 <TextBlock Text="Chat" FontSize="22" FontWeight="Bold"
                            Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+                <TextBlock x:Name="ModelStatusText" Text="" FontSize="11"
+                           Foreground="{ThemeResource TextFillColorTertiaryBrush}"
+                           VerticalAlignment="Center"/>
                 <TextBlock x:Name="StatusText" Text="Ready" FontSize="12"
                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                           VerticalAlignment="Center"/>
@@ -51,7 +54,7 @@
                                 <Binding Path="Role" Converter="{StaticResource RoleToVisibilityConverter}" ConverterParameter="user"/>
                             </Border.Visibility>
                             <TextBlock Text="{x:Bind Content}" TextWrapping="Wrap" FontSize="15"
-                                       Foreground="{ThemeResource TextFillColorOnAccentFillColorDefaultBrush}"/>
+                                       Foreground="Black"/>
                         </Border>
 
                         <!-- Model response (left-aligned, NO bubble, with Markdown) -->
@@ -63,7 +66,8 @@
                                        Foreground="{ThemeResource SystemFillColorSuccessBrush}" Opacity="0.7"/>
                             <RichTextBlock x:Name="ModelRichText" TextWrapping="Wrap" FontSize="15"
                                            Foreground="{ThemeResource TextFillColorPrimaryBrush}"
-                                           Loaded="ModelRichText_Loaded"/>
+                                           Loaded="ModelRichText_Loaded"
+                                           DataContextChanged="ModelRichText_DataContextChanged"/>
                         </StackPanel>
 
                         <!-- Tool call card -->

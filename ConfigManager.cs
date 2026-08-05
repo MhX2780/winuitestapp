@@ -204,6 +204,17 @@ public static class ConfigManager
         File.WriteAllText(Path.Combine(BaseDir, fileName), key.Trim());
     }
 
+    // Chat session management
+    public static List<string> GetChatSessionFiles()
+    {
+        try
+        {
+            if (!Directory.Exists(ChatHistoryDir)) return new();
+            return Directory.GetFiles(ChatHistoryDir, "chat_*.json").ToList();
+        }
+        catch { return new(); }
+    }
+
     // Settings persistence
     public static void LoadSettings()
     {

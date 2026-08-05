@@ -190,6 +190,53 @@
                     <TextBlock Text="Puter.js Token" FontWeight="SemiBold"
                                Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
                     <PasswordBox x:Name="PuterTokenBox" PlaceholderText="Puter auth token..." Width="400"/>
+                    <TextBlock FontSize="11" Foreground="{ThemeResource TextFillColorTertiaryBrush}"
+                               Text="Get a free token at puter.com/dashboard#account → Create token."/>
+                </StackPanel>
+            </Border>
+
+            <!-- ═══ Puter.js Settings ═══ -->
+            <TextBlock Text="Puter.js Integration" FontSize="22" FontWeight="Bold" Margin="0,12,0,0"
+                       Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+            <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                    BorderThickness="1" CornerRadius="8" Padding="20">
+                <StackPanel Spacing="10">
+                    <ToggleSwitch x:Name="PuterChat" Header="Puter.js Chat (route main chat through Puter)" IsOn="False"
+                                  ToolTipService.ToolTip="When ON, chat goes through Puter's free models instead of Gemini."/>
+                    <ToggleSwitch x:Name="PuterFreeOnly" Header="Free Models Only" IsOn="True"
+                                  ToolTipService.ToolTip="Only allow Puter models with 'free' in the name."/>
+                    <ToggleSwitch x:Name="PuterToolCalling" Header="Puter Tool Calling (BETA)" IsOn="False"
+                                  ToolTipService.ToolTip="Let Puter models call all workspace tools (best-effort, may not work with all models)."/>
+                    <ToggleSwitch x:Name="PuterImageTools" Header="Puter Image Tools (BETA)" IsOn="False"
+                                  ToolTipService.ToolTip="Enable Puter.js fallback for Image_Fetch and Image_Create."/>
+                    <ToggleSwitch x:Name="PuterDeepThinking" Header="Puter Deep Thinking" IsOn="False"
+                                  ToolTipService.ToolTip="Enable reasoning_effort parameter for reasoning-capable Puter models."/>
+                    
+                    <TextBlock Text="Puter Chat Model" FontWeight="SemiBold" Margin="0,8,0,0"/>
+                    <TextBox x:Name="PuterModelBox" PlaceholderText="infron:deepseek/deepseek-v4-flash:free"
+                             Width="400" TextWrapping="Wrap"/>
+                    
+                    <TextBlock Text="Puter Vision Model (Image_Fetch_Puter)" FontWeight="SemiBold" Margin="0,4,0,0"/>
+                    <TextBox x:Name="PuterVisionBox" PlaceholderText="infron:deepseek/deepseek-v4-flash:free"
+                             Width="400" TextWrapping="Wrap"/>
+                    
+                    <TextBlock Text="Puter Image Gen Model (Image_Create_Puter)" FontWeight="SemiBold" Margin="0,4,0,0"/>
+                    <TextBox x:Name="PuterImageGenBox" PlaceholderText="infron:deepseek/deepseek-v4-flash:free"
+                             Width="400" TextWrapping="Wrap"/>
+                    
+                    <ComboBox x:Name="PuterEffortCombo" Header="Deep Thinking Effort" Width="200" SelectedIndex="2" CornerRadius="6">
+                        <ComboBoxItem Content="low" Tag="low"/>
+                        <ComboBoxItem Content="medium" Tag="medium"/>
+                        <ComboBoxItem Content="high" Tag="high"/>
+                    </ComboBox>
+
+                    <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,8,0,0">
+                        <Button x:Name="ListPuterModelsButton" Content="List Puter Models" Click="ListPuterModels_Click" CornerRadius="6"/>
+                        <Button x:Name="ListFreeModelsButton" Content="List Free Models" Click="ListFreeModels_Click" CornerRadius="6"/>
+                    </StackPanel>
+                    <TextBlock x:Name="PuterModelsStatus" FontSize="12"
+                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
                 </StackPanel>
             </Border>
 

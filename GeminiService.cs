@@ -73,6 +73,7 @@ Important rules:
 
     /// <summary>
     /// Main chat entrypoint with tool-calling loop and auto-retry.
+    /// Routes through Puter.js when PuterChatEnabled is on.
     /// </summary>
     public async Task<string> SendStreamingAsync(List<Dictionary<string, object>> history, string userMessage, CancellationToken ct = default)
     {
@@ -82,14 +83,23 @@ Important rules:
         {
             CrashLogger.Log("INFO", $"SendStreamingAsync: model={CurrentModel}, history={history.Count}, msgLen={userMessage.Length}");
 
-            var sysPrompt = string.IsNullOrEmpty(ConfigManager.Settings.SystemPromptOverride) ? BuildSystemPrompt() : ConfigManager.Settings.SystemPromptOverride;
+            // Check if Puter.js routing is enabled
+            if (ConfigManager.PuterChatEnabled && !string.IsNullOrEmpty(ConfigManager.LoadPuterToken()))
+            {
+                CrashLogger.Log("INFO", "Routing through Puter.js");
+                finalText = await SendPuterStreamingAsync(history, userMessage, ct);
+            }
+            else
+            {
+                var sysPrompt = string.IsNullOrEmpty(ConfigManager.Settings.SystemPromptOverride) ? BuildSystemPrompt() : ConfigManager.Settings.SystemPromptOverride;
 
-            // Add user message to history
-            history.Add(MakeUserContent(userMessage));
-            CrashLogger.Log("INFO", $"User content added to history, total entries={history.Count}");
+                // Add user message to history
+                history.Add(MakeUserContent(userMessage));
+                CrashLogger.Log("INFO", $"User content added to history, total entries={history.Count}");
 
-            // Try with retry + model switching
-            finalText = await TryWithRetryAsync(history, sysPrompt, ct);
+                // Try with retry + model switching
+                finalText = await TryWithRetryAsync(history, sysPrompt, ct);
+            }
         }
         catch (OperationCanceledException)
         {
@@ -419,6 +429,171 @@ Important rules:
             { "role", "model" },
             { "parts", new List<object> { new Dictionary<string, object> { { "text", (object?)text ?? "" } } } }
         };
+    }
+
+    // ─── Puter.js Integration (ported from UGA agent.py + providers.py) ───
+
+    /// <summary>
+    /// Puter.js chat entrypoint. Routes through Puter's OpenAI-compatible endpoint.
+    /// Supports both plain-text chat and tool-calling (BETA) when enabled.
+    /// </summary>
+    private async Task<string> SendPuterStreamingAsync(List<Dictionary<string, object>> history, string userMessage, CancellationToken ct)
+    {
+        using var puter = new PuterService();
+        var model = ConfigManager.Settings.PuterFreeChatModel ?? "infron:deepseek/deepseek-v4-flash:free";
+
+        if (ConfigManager.PuterToolCallingEnabled)
+        {
+            // Full tool-calling loop via Puter (BETA)
+            return await PuterToolCallLoopAsync(puter, model, history, userMessage, ct);
+        }
+
+        // Plain-text Puter chat (no tools)
+        var sysPrompt = string.IsNullOrEmpty(ConfigManager.Settings.SystemPromptOverride) ? BuildSystemPrompt() : ConfigManager.Settings.SystemPromptOverride;
+
+        var sb = new System.Text.StringBuilder();
+        await puter.StreamAsync(model, userMessage, sysPrompt, text =>
+        {
+            sb.Append(text);
+            OnTokenReceived?.Invoke(text);
+        }, ct);
+
+        var finalText = sb.ToString();
+        // Add to Gemini-format history for consistency
+        history.Add(MakeUserContent(userMessage));
+        history.Add(MakeModelContent(finalText));
+        return finalText;
+    }
+
+    /// <summary>
+    /// Puter.js tool-calling loop (BETA). Mirrors the Gemini tool loop but uses
+    /// OpenAI-compatible message format (assistant → tool_calls, tool role for results).
+    /// Tool schemas are built in OpenAI format via PuterService.BuildAllToolsSchema.
+    /// </summary>
+    private async Task<string> PuterToolCallLoopAsync(PuterService puter, string model,
+        List<Dictionary<string, object>> history, string userMessage, CancellationToken ct)
+    {
+        var sysPrompt = string.IsNullOrEmpty(ConfigManager.Settings.SystemPromptOverride) ? BuildSystemPrompt() : ConfigManager.Settings.SystemPromptOverride;
+        var toolsSchema = PuterService.BuildAllToolsSchema();
+
+        // Build OpenAI-format messages from Gemini history
+        var messages = new JArray();
+        if (!string.IsNullOrEmpty(sysPrompt))
+            messages.Add(new JObject { ["role"] = "system", ["content"] = sysPrompt });
+
+        // Convert existing Gemini history to OpenAI messages
+        foreach (var entry in history)
+        {
+            var role = entry.GetValueOrDefault("role")?.ToString() ?? "";
+            if (role == "user")
+            {
+                var text = ExtractGeminiPartsText(entry);
+                if (!string.IsNullOrEmpty(text))
+                    messages.Add(new JObject { ["role"] = "user", ["content"] = text });
+            }
+            else if (role == "model")
+            {
+                var text = ExtractGeminiPartsText(entry);
+                if (!string.IsNullOrEmpty(text))
+                    messages.Add(new JObject { ["role"] = "assistant", ["content"] = text });
+            }
+        }
+
+        // Add current user message
+        messages.Add(new JObject { ["role"] = "user", ["content"] = userMessage });
+
+        int rounds = 0;
+        var maxRounds = 15;
+        var fullText = new System.Text.StringBuilder();
+
+        while (rounds < maxRounds)
+        {
+            rounds++;
+            ct.ThrowIfCancellationRequested();
+
+            JArray? toolCallsReceived = null;
+            var textSb = new System.Text.StringBuilder();
+
+            await puter.StreamWithToolsAsync(model, messages, toolsSchema,
+                text => { textSb.Append(text); OnTokenReceived?.Invoke(text); },
+                tc => { toolCallsReceived = tc; },
+                ct);
+
+            var roundText = textSb.ToString();
+            fullText.Append(roundText);
+
+            if (toolCallsReceived == null || toolCallsReceived.Count == 0)
+                break; // No more tool calls — done
+
+            // Add assistant message with tool_calls to history
+            var assistantMsg = new JObject { ["role"] = "assistant" };
+            if (!string.IsNullOrEmpty(roundText))
+                assistantMsg["content"] = roundText;
+            assistantMsg["tool_calls"] = toolCallsReceived;
+            messages.Add(assistantMsg);
+
+            // Execute each tool call
+            foreach (var tc in toolCallsReceived)
+            {
+                var fnName = tc["function"]?["name"]?.ToString() ?? "";
+                var fnArgs = tc["function"]?["arguments"]?.ToString() ?? "{}";
+                var tcId = tc["id"]?.ToString() ?? $"call_{rounds}";
+
+                OnToolCallStarted?.Invoke(fnName);
+
+                string result;
+                bool success;
+                try
+                {
+                    (result, success) = await ToolExecutor.ExecuteAsync(fnName, fnArgs, ct);
+                }
+                catch (Exception ex)
+                {
+                    result = $"Tool error: {ex.Message}";
+                    success = false;
+                }
+
+                MemoryManager.RecordExecution(fnName,
+                    JsonConvert.DeserializeObject<Dictionary<string, string>>(fnArgs) ?? new(), result, success);
+                OnToolCallCompleted?.Invoke(fnName, success);
+
+                // Add tool result (OpenAI format)
+                messages.Add(new JObject
+                {
+                    ["role"] = "tool",
+                    ["tool_call_id"] = tcId,
+                    ["content"] = success ? result : $"Error: {result}",
+                });
+            }
+        }
+
+        // Sync back to Gemini-format history
+        history.Add(MakeUserContent(userMessage));
+        history.Add(MakeModelContent(fullText.ToString()));
+
+        return fullText.ToString();
+    }
+
+    /// <summary>
+    /// Extracts text from Gemini-format message parts.
+    /// </summary>
+    private static string ExtractGeminiPartsText(Dictionary<string, object> entry)
+    {
+        try
+        {
+            if (entry.TryGetValue("parts", out var parts) && parts is System.Collections.IEnumerable partsEnum)
+            {
+                var texts = new List<string>();
+                foreach (var p in partsEnum)
+                {
+                    if (p is Dictionary<string, object> dict && dict.TryGetValue("text", out var t))
+                        texts.Add(t?.ToString() ?? "");
+                }
+                return string.Join("", texts);
+            }
+        }
+        catch { }
+        return "";
     }
 
     public void Dispose() => _http.Dispose();

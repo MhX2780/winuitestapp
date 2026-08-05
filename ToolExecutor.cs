@@ -2385,4 +2385,48 @@ $b.Dispose()
     }
     private static Dictionary<string, object> Req(string name, string type, string desc) => new() { { "name", name }, { "type", type }, { "description", desc }, { "required", true } };
     private static Dictionary<string, object> Opt(string name, string type, string desc) => new() { { "name", name }, { "type", type }, { "description", desc }, { "required", false } };
+
+    /// <summary>
+    /// Lightweight tool declaration for PuterService to build OpenAI-style schemas.
+    /// Avoids re-parsing the full Gemini-format tool definitions.
+    /// </summary>
+    public class ToolDeclaration
+    {
+        public string Name { get; set; } = "";
+        public string Description { get; set; } = "";
+        public Dictionary<string, object> Properties { get; set; } = new();
+        public List<string> Required { get; set; } = new();
+    }
+
+    /// <summary>
+    /// Returns simplified tool declarations for all registered tools.
+    /// Used by PuterService.BuildAllToolsSchema() to create OpenAI-compatible tool schemas.
+    /// </summary>
+    public static List<ToolDeclaration> GetToolDeclarations()
+    {
+        var decls = new List<ToolDeclaration>();
+        foreach (var toolDef in GetToolDefinitions())
+        {
+            var name = toolDef["name"]?.ToString() ?? "";
+            var desc = toolDef["description"]?.ToString() ?? "";
+            var parameters = toolDef["parameters"] as Dictionary<string, object>;
+            if (parameters == null) continue;
+
+            var properties = parameters.TryGetValue("properties", out var p)
+                ? p as Dictionary<string, object> ?? new Dictionary<string, object>()
+                : new Dictionary<string, object>();
+            var required = parameters.TryGetValue("required", out var r)
+                ? (r as List<object>)?.Select(x => x?.ToString() ?? "").Where(x => !string.IsNullOrEmpty(x)).ToList()
+                : new List<string>();
+
+            decls.Add(new ToolDeclaration
+            {
+                Name = name,
+                Description = desc,
+                Properties = properties,
+                Required = required ?? new(),
+            });
+        }
+        return decls;
+    }
 }

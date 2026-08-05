@@ -44,6 +44,17 @@ public sealed partial class SettingsPage : Page
             OpenAIKeyBox.Password = ConfigManager.LoadProviderApiKey("openai");
             PuterTokenBox.Password = ConfigManager.LoadPuterToken();
 
+            // Puter.js settings
+            PuterChat.IsOn = s.PuterChatEnabled;
+            PuterFreeOnly.IsOn = s.PuterFreeOnly;
+            PuterToolCalling.IsOn = s.PuterToolCallingEnabled;
+            PuterImageTools.IsOn = s.PuterImageToolsEnabled;
+            PuterDeepThinking.IsOn = s.PuterDeepThinkingEnabled;
+            PuterModelBox.Text = s.PuterFreeChatModel;
+            PuterVisionBox.Text = s.PuterVisionModel;
+            PuterImageGenBox.Text = s.PuterImageGenModel;
+            SetCombo(PuterEffortCombo, s.PuterDeepThinkingEffort);
+
             // Memory
             SystemPromptBox.Text = s.SystemPromptOverride;
             MaxHistory.Value = s.MaxHistoryMessages;
@@ -62,10 +73,13 @@ public sealed partial class SettingsPage : Page
 
             // Theme
             SetThemeCombo(s.ThemeMode);
+
+            _isLoadingUI = false;
         }
         catch (Exception ex)
         {
             CrashLogger.Log("ERROR", $"LoadUI failed: {ex.Message}");
+            _isLoadingUI = false;
         }
     }
 
@@ -233,6 +247,17 @@ public sealed partial class SettingsPage : Page
         s.DeepThinkingBudget = (int)ThinkBudget.Value;
         s.DeepThinkingIncludeThoughts = ThinkInclude.IsOn;
 
+        // Puter.js settings
+        s.PuterChatEnabled = PuterChat.IsOn;
+        s.PuterFreeOnly = PuterFreeOnly.IsOn;
+        s.PuterToolCallingEnabled = PuterToolCalling.IsOn;
+        s.PuterImageToolsEnabled = PuterImageTools.IsOn;
+        s.PuterDeepThinkingEnabled = PuterDeepThinking.IsOn;
+        s.PuterFreeChatModel = PuterModelBox.Text?.Trim() ?? "infron:deepseek/deepseek-v4-flash:free";
+        s.PuterVisionModel = PuterVisionBox.Text?.Trim() ?? "infron:deepseek/deepseek-v4-flash:free";
+        s.PuterImageGenModel = PuterImageGenBox.Text?.Trim() ?? "infron:deepseek/deepseek-v4-flash:free";
+        s.PuterDeepThinkingEffort = ((ComboBoxItem)PuterEffortCombo.SelectedItem)?.Tag?.ToString() ?? "high";
+
         // Memory
         s.SystemPromptOverride = SystemPromptBox.Text?.Trim() ?? "";
         s.MaxHistoryMessages = (int)MaxHistory.Value;
@@ -335,19 +360,27 @@ public sealed partial class SettingsPage : Page
         }
     }
 
+    private bool _isLoadingUI = true;
+
     private void ThemeCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
         if (ThemeCombo.SelectedItem is not ComboBoxItem item) return;
         var tag = item.Tag?.ToString() ?? "auto";
-        ThemeStatus.Text = tag switch
+        // Guard: ThemeStatus may be null during InitializeComponent if SelectedIndex="0"
+        // fires SelectionChanged before all named XAML fields are wired up.
+        if (ThemeStatus != null)
         {
-            "auto" => "Follows Windows system theme setting.",
-            "dark" => "Always use dark theme.",
-            "light" => "Always use light theme.",
-            _ => ""
-        };
-        // Live preview
-        ApplyThemeImmediate(tag);
+            ThemeStatus.Text = tag switch
+            {
+                "auto" => "Follows Windows system theme setting.",
+                "dark" => "Always use dark theme.",
+                "light" => "Always use light theme.",
+                _ => ""
+            };
+        }
+        // Live preview (skip during initial LoadUI to avoid redundant ApplyTheme)
+        if (!_isLoadingUI)
+            ApplyThemeImmediate(tag);
     }
 
     private void ApplyThemeImmediate(string mode)
@@ -400,5 +433,57 @@ public sealed partial class SettingsPage : Page
         CoTaskMemFree(pidl);
 
         return result ? sb.ToString() : null;
+    }
+
+    // ─── Puter.js model listing ───
+
+    private async void ListPuterModels_Click(object sender, RoutedEventArgs e)
+    {
+        if (string.IsNullOrEmpty(ConfigManager.LoadPuterToken()))
+        {
+            PuterModelsStatus.Text = "No Puter token configured.";
+            return;
+        }
+        ListPuterModelsButton.IsEnabled = false;
+        PuterModelsStatus.Text = "Fetching models...";
+        try
+        {
+            using var puter = new PuterService();
+            var models = await puter.ListModelsAsync();
+            PuterModelsStatus.Text = $"Found {models.Count} models. First 20: {string.Join(", ", models.Take(20))}";
+        }
+        catch (Exception ex)
+        {
+            PuterModelsStatus.Text = $"Error: {ex.Message}";
+        }
+        finally
+        {
+            ListPuterModelsButton.IsEnabled = true;
+        }
+    }
+
+    private async void ListFreeModels_Click(object sender, RoutedEventArgs e)
+    {
+        if (string.IsNullOrEmpty(ConfigManager.LoadPuterToken()))
+        {
+            PuterModelsStatus.Text = "No Puter token configured.";
+            return;
+        }
+        ListFreeModelsButton.IsEnabled = false;
+        PuterModelsStatus.Text = "Fetching free models...";
+        try
+        {
+            using var puter = new PuterService();
+            var models = await puter.ListFreeModelsAsync();
+            PuterModelsStatus.Text = $"Found {models.Count} free models: {string.Join(", ", models.Take(20))}";
+        }
+        catch (Exception ex)
+        {
+            PuterModelsStatus.Text = $"Error: {ex.Message}";
+        }
+        finally
+        {
+            ListFreeModelsButton.IsEnabled = true;
+        }
     }
 }

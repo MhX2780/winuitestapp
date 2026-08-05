@@ -17,6 +17,13 @@ public class ChatMessage
     public bool IsToolCall { get; set; } = false;
     public string? ToolName { get; set; }
     public bool ToolSuccess { get; set; } = true;
+    public string ToolCallStatus { get; set; } = "done"; // running, done, failed
+    [Newtonsoft.Json.JsonIgnore]
+    public bool IsToolRunning => ToolCallStatus == "running";
+    [Newtonsoft.Json.JsonIgnore]
+    public bool IsToolDone => ToolCallStatus == "done";
+    [Newtonsoft.Json.JsonIgnore]
+    public bool IsToolFailed => ToolCallStatus == "failed";
     // For multi-agent plan display
     public string? PlanStep { get; set; }
     public int? StepNumber { get; set; }

@@ -1,6 +1,5 @@
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
-using Microsoft.UI.Xaml.Input;
 
 namespace AdvaBrowser;
 
@@ -15,7 +14,6 @@ public sealed partial class HomePage : Page
     {
         this.InitializeComponent();
         UpdateVisibility();
-        SetupHandCursors();
     }
 
     private void UpdateVisibility()
@@ -24,57 +22,55 @@ public sealed partial class HomePage : Page
         ChatListView.Visibility = _messages.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
     }
 
-    private void SetupHandCursors()
-    {
-        SetHand(SendButton);
-        SetHand(UndoButton);
-        SetHand(ClearButton);
-        SetHand(NewChatButton);
-    }
-
-    private static void SetHand(UIElement el)
-    {
-        CursorHelper.SetHandOn(el);
-    }
-
-    private void InputTextBox_KeyDown(object sender, KeyRoutedEventArgs e)
+    private void InputTextBox_KeyDown(object sender, Microsoft.UI.Xaml.Input.KeyRoutedEventArgs e)
     {
         if (e.Key == Windows.System.VirtualKey.Enter)
         {
-            // Check Ctrl modifier
             var ctrlState = Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(Windows.System.VirtualKey.Control);
             bool ctrlHeld = ctrlState.HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down);
-
             if (ctrlHeld)
             {
-                // Ctrl+Enter = Send
-                e.Handled = true; // Prevent newline
+                e.Handled = true;
                 _ = SendMessageAsync();
             }
-            // else: let AcceptsReturn handle Enter = newline
         }
     }
 
     private void SendButton_Click(object sender, RoutedEventArgs e) => _ = SendMessageAsync();
 
-    private void ClearChat_Click(object sender, RoutedEventArgs e)
+    // Public methods called from MainWindow navigation actions
+    public void ExecuteClearChat()
     {
         _messages.Clear();
         _streamingMsg = null;
         Bind();
     }
 
-    private void NewChat_Click(object sender, RoutedEventArgs e)
+    public void ExecuteNewChat()
     {
-        ClearChat_Click(sender, e);
+        ExecuteClearChat();
         MemoryManager.ClearExecutionLog();
         MemoryManager.LogMessage("system", "New chat started");
+    }
+
+    public async void ExecuteUndo()
+    {
+        try
+        {
+            var (result, success) = await ToolExecutor.ExecuteAsync("undo_last_change", "{}");
+            _messages.Add(new() { Role = "system", Content = result });
+            Bind();
+            ScrollBottom();
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[UGA Undo Error] {ex.Message}");
+        }
     }
 
     private async Task<bool> ShowApiKeyDialog()
     {
         InputTextBox.IsEnabled = false;
-        SendButton.IsEnabled = false;
 
         var pwd = new PasswordBox { PlaceholderText = "Enter Gemini API Key..." };
         var panel = new StackPanel { Spacing = 8 };
@@ -96,7 +92,6 @@ public sealed partial class HomePage : Page
 
         var result = await dlg.ShowAsync();
         InputTextBox.IsEnabled = true;
-        SendButton.IsEnabled = true;
 
         if (result == ContentDialogResult.Primary && !string.IsNullOrWhiteSpace(pwd.Password))
         {
@@ -107,59 +102,61 @@ public sealed partial class HomePage : Page
         return false;
     }
 
-    private async void Undo_Click(object sender, RoutedEventArgs e)
+    // Fade animation for Send button -> Spinner
+    private async Task ShowSendSpinner()
     {
-        try
+        SendProgressRing.Visibility = Visibility.Visible;
+        SendProgressRing.IsActive = true;
+        SendProgressRing.Opacity = 0;
+
+        for (int i = 5; i >= 0; i--)
         {
-            var (result, success) = await ToolExecutor.ExecuteAsync("undo_last_change", "{}");
-            _messages.Add(new() { Role = "system", Content = result });
-            Bind();
+            SendButton.Opacity = i / 5.0;
+            SendProgressRing.Opacity = 1 - (i / 5.0);
+            await System.Threading.Tasks.Task.Delay(35);
         }
-        catch (Exception ex)
+        SendButton.Visibility = Visibility.Collapsed;
+    }
+
+    private async Task ShowSendButton()
+    {
+        SendButton.Visibility = Visibility.Visible;
+        SendButton.Opacity = 0;
+
+        for (int i = 0; i <= 5; i++)
         {
-            System.Diagnostics.Debug.WriteLine($"[UGA Undo Error] {ex.Message}");
+            SendButton.Opacity = i / 5.0;
+            SendProgressRing.Opacity = 1 - (i / 5.0);
+            await System.Threading.Tasks.Task.Delay(35);
         }
+        SendProgressRing.IsActive = false;
+        SendProgressRing.Visibility = Visibility.Collapsed;
     }
 
     private async Task SendMessageAsync()
     {
-        // Save text BEFORE anything else
         var text = InputTextBox.Text?.Trim();
         if (string.IsNullOrEmpty(text)) return;
 
         CrashLogger.Log("INFO", $"SendMessageAsync: textLen={text.Length}");
 
-        // Check API key — show dialog if missing
         if (!ConfigManager.HasApiKey)
         {
-            CrashLogger.Log("INFO", "No API key, showing dialog");
             var keyEntered = await ShowApiKeyDialog();
             if (!keyEntered) return;
-            CrashLogger.Log("INFO", "API key entered via dialog");
-        }
-        else
-        {
-            CrashLogger.Log("INFO", "API key found in config");
         }
 
-        // Clear input and show user message in chat
         InputTextBox.Text = "";
         _messages.Add(new() { Role = "user", Content = text });
         _streamingMsg = null;
         Bind();
 
-        // Update UI state
-        ThinkingRing.IsActive = true;
-        ThinkingRing.Visibility = Visibility.Visible;
         StatusText.Text = "Thinking...";
-        SendButton.IsEnabled = false;
-
+        await ShowSendSpinner();
         TaskbarProgress.SetIndeterminate();
 
         _service ??= new GeminiService();
-        CrashLogger.Log("INFO", $"Service ready, model={_service.CurrentModel}");
 
-        // Detach first to prevent handler accumulation
         _service.OnTokenReceived -= OnToken;
         _service.OnToolCallStarted -= OnToolStart;
         _service.OnToolCallCompleted -= OnToolDone;
@@ -175,25 +172,21 @@ public sealed partial class HomePage : Page
         _cts = new();
         try
         {
-            // Build history from previous messages only (not the one we just added)
             var history = _messages
                 .Where(m => m.Role is "user" or "model")
-                .Where(m => !(m.Role == "user" && m.Content == text)) // exclude current message
+                .Where(m => !(m.Role == "user" && m.Content == text))
                 .Select(m => new Dictionary<string, object>
                 {
                     { "role", (object)m.Role },
                     { "parts", (object)new List<object> { new Dictionary<string, object> { { "text", (object?)m.Content ?? "" } } } }
                 }).ToList();
 
-            System.Diagnostics.Debug.WriteLine($"[UGA] Sending message, history={history.Count}, text={text.Length}");
-
             await _service.SendStreamingAsync(history, text, _cts.Token);
         }
         catch (OperationCanceledException) { }
         catch (Exception ex)
         {
-            CrashLogger.Log("ERROR", $"SendMessageAsync exception: {ex.GetType().Name}: {ex.Message}\n{ex.StackTrace}");
-            CrashLogger.WriteCrash($"SendMessageAsync: {ex.GetType().Name}: {ex.Message}\n{ex.StackTrace}");
+            CrashLogger.Log("ERROR", $"SendMessageAsync: {ex.GetType().Name}: {ex.Message}");
             OnErr($"Error: {ex.Message}");
         }
     }
@@ -210,7 +203,7 @@ public sealed partial class HomePage : Page
                     Role = "model", Content = t,
                     IsStreaming = true, ModelName = _service?.CurrentModel
                 };
-                _messages.Add(_streamingMsg); // CRITICAL: must add to bound list!
+                _messages.Add(_streamingMsg);
             }
             else
             {
@@ -228,8 +221,9 @@ public sealed partial class HomePage : Page
             StatusText.Text = $"Tool: {name}...";
             _messages.Add(new()
             {
-                Role = "tool", Content = $"Calling {name}...",
-                IsToolCall = true, ToolName = name
+                Role = "tool", Content = "Running...",
+                IsToolCall = true, ToolName = name,
+                ToolCallStatus = "running"
             });
             Bind();
             ScrollBottom();
@@ -244,8 +238,9 @@ public sealed partial class HomePage : Page
             var last = _messages.LastOrDefault(m => m.IsToolCall && m.ToolName == name);
             if (last != null)
             {
-                last.Content = $"{name}: {(ok ? "Done" : "Failed")}";
+                last.Content = ok ? "Completed" : "Failed";
                 last.ToolSuccess = ok;
+                last.ToolCallStatus = ok ? "done" : "failed";
             }
             Bind();
             ScrollBottom();
@@ -254,12 +249,10 @@ public sealed partial class HomePage : Page
 
     private void OnErr(string err)
     {
-        DispatcherQueue.TryEnqueue(() =>
+        DispatcherQueue.TryEnqueue(async () =>
         {
-            ThinkingRing.IsActive = false;
-            ThinkingRing.Visibility = Visibility.Collapsed;
             StatusText.Text = "Error";
-            SendButton.IsEnabled = true;
+            await ShowSendButton();
             TaskbarProgress.SetError();
             _messages.Add(new() { Role = "system", Content = err });
             Bind();
@@ -269,19 +262,17 @@ public sealed partial class HomePage : Page
 
     private void OnDone()
     {
-        DispatcherQueue.TryEnqueue(() =>
+        DispatcherQueue.TryEnqueue(async () =>
         {
-            ThinkingRing.IsActive = false;
-            ThinkingRing.Visibility = Visibility.Collapsed;
             StatusText.Text = "Ready";
-            SendButton.IsEnabled = true;
+            await ShowSendButton();
             TaskbarProgress.Clear();
 
             if (_streamingMsg != null)
             {
                 _streamingMsg.IsStreaming = false;
                 MemoryManager.LogMessage("model", _streamingMsg.Content, _streamingMsg.ModelName);
-                _streamingMsg = null; // just clear ref; message stays in _messages
+                _streamingMsg = null;
             }
             Bind();
             ScrollBottom();

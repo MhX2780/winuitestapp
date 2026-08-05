@@ -11,40 +11,6 @@ public sealed partial class SettingsPage : Page
     {
         this.InitializeComponent();
         LoadUI();
-        SetupHandCursors();
-    }
-
-    private void SetupHandCursors()
-    {
-        // Buttons
-        SetHand(SaveKeyButton);
-        SetHand(ResetKeyButton);
-        SetHand(BrowseButton);
-        SetHand(SaveAllButton);
-        SetHand(ResetDefaultsButton);
-        SetHand(ShowLogsButton);
-        // ComboBoxes
-        SetHand(ModelCombo);
-        SetHand(ClassifierCombo);
-        SetHand(PlannerCombo);
-        SetHand(ExecutorCombo);
-        SetHand(ReviewerCombo);
-        // ToggleSwitches
-        SetHand(FileTools);
-        SetHand(SearchTools);
-        SetHand(GitTools);
-        SetHand(ExecTools);
-        SetHand(CodeTools);
-        SetHand(NetworkTools);
-        SetHand(SystemTools);
-        SetHand(MultiAgent);
-        SetHand(DeepThinking);
-        SetHand(ThinkInclude);
-    }
-
-    private static void SetHand(UIElement el)
-    {
-        CursorHelper.SetHandOn(el);
     }
 
     private void LoadUI()

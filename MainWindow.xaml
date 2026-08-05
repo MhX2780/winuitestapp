@@ -9,6 +9,7 @@
         x:Name="RootNav"
         IsBackButtonVisible="Collapsed"
         IsSettingsVisible="False"
+        IsPaneOpen="False"
         PaneDisplayMode="Left"
         SelectionChanged="RootNav_SelectionChanged"
         Loaded="RootNav_Loaded"
@@ -18,11 +19,11 @@
         IsPaneToggleButtonVisible="True"
         IsTitleBarAutoPaddingEnabled="False"
         AlwaysShowHeader="False"
-        CompactModeThresholdWidth="640"
-        ExpandedModeThresholdWidth="641">
+        CompactModeThresholdWidth="0"
+        ExpandedModeThresholdWidth="10000">
 
         <NavigationView.MenuItems>
-            <NavigationViewItem Content="Chat" Tag="home" ToolTipService.ToolTip="Home">
+            <NavigationViewItem Content="Chat" Tag="home" ToolTipService.ToolTip="Chat">
                 <NavigationViewItem.Icon>
                     <SymbolIcon Symbol="Message" />
                 </NavigationViewItem.Icon>
@@ -30,6 +31,21 @@
         </NavigationView.MenuItems>
 
         <NavigationView.FooterMenuItems>
+            <NavigationViewItem Tag="undo" ToolTipService.ToolTip="Undo Last Change">
+                <NavigationViewItem.Icon>
+                    <SymbolIcon Symbol="Undo" />
+                </NavigationViewItem.Icon>
+            </NavigationViewItem>
+            <NavigationViewItem Tag="clear" ToolTipService.ToolTip="Clear Chat History">
+                <NavigationViewItem.Icon>
+                    <SymbolIcon Symbol="Delete" />
+                </NavigationViewItem.Icon>
+            </NavigationViewItem>
+            <NavigationViewItem Tag="newchat" ToolTipService.ToolTip="New Conversation">
+                <NavigationViewItem.Icon>
+                    <SymbolIcon Symbol="Add" />
+                </NavigationViewItem.Icon>
+            </NavigationViewItem>
             <NavigationViewItem Content="Settings" Tag="settings" ToolTipService.ToolTip="Settings">
                 <NavigationViewItem.Icon>
                     <SymbolIcon Symbol="Setting" />

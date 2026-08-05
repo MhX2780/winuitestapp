@@ -211,7 +211,7 @@ public class GeminiService : IDisposable
                 // Add function response to history
                 history.Add(new Dictionary<string, object>
                 {
-                    { "role", "function" },
+                    { "role", "user" },
                     { "parts", new List<Dictionary<string, object>>
                         {
                             new() { { "functionResponse", new Dictionary<string, object>

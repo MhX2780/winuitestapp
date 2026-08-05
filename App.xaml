@@ -11,21 +11,11 @@
                 <XamlControlsResources xmlns="using:Microsoft.UI.Xaml.Controls" />
             </ResourceDictionary.MergedDictionaries>
 
-            <!-- ═══════ WinUI Theme Brushes ═══════ -->
-            <!-- Chat Bubbles -->
-            <SolidColorBrush x:Key="UserBubbleBrush" Color="#2B2B2B"/>
-            <SolidColorBrush x:Key="ModelBubbleBrush" Color="#1A1A2E"/>
-            <SolidColorBrush x:Key="ToolCallBorderBrush" Color="#60CDFF"/>
-            <SolidColorBrush x:Key="AccentBrush" Color="#60CDFF"/>
-
-            <!-- Tool-call indicator bubble (replaces unreliable Tertiary brush) -->
-            <SolidColorBrush x:Key="ToolCallBubbleBrush" Color="#1C1C28"/>
-
-            <!-- Navigation -->
+            <!-- Navigation: transparent backgrounds -->
             <SolidColorBrush x:Key="NavigationViewContentGridBorderBrush" Color="Transparent"/>
             <SolidColorBrush x:Key="NavigationViewDefaultPaneBackground" Color="Transparent"/>
 
-            <!-- ═══════ Converters ═══════ -->
+            <!-- Converters -->
             <local:RoleToVisibilityConverter x:Key="RoleToVisibilityConverter"/>
             <local:BoolToVisibilityConverter x:Key="BoolToVisibilityConverter"/>
             <local:BoolToOpacityConverter x:Key="BoolToOpacityConverter"/>

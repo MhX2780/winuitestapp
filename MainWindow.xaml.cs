@@ -11,10 +11,10 @@ public sealed partial class MainWindow : Window
     {
         this.InitializeComponent();
 
-        // Extended title bar (from Content.md)
+        // Extended title bar
         AppWindow.TitleBar.ExtendsContentIntoTitleBar = true;
 
-        // Style caption buttons for acrylic backdrop
+        // Caption button colors for acrylic backdrop
         AppWindow.TitleBar.ButtonBackgroundColor = Windows.UI.Color.FromArgb(0, 0, 0, 0);
         AppWindow.TitleBar.ButtonForegroundColor = Windows.UI.Color.FromArgb(255, 255, 255, 255);
         AppWindow.TitleBar.ButtonInactiveBackgroundColor = Windows.UI.Color.FromArgb(0, 0, 0, 0);
@@ -25,15 +25,15 @@ public sealed partial class MainWindow : Window
         AppWindow.TitleBar.ButtonPressedForegroundColor = Windows.UI.Color.FromArgb(255, 255, 255, 255);
         AppWindow.TitleBar.ButtonInactiveForegroundColor = Windows.UI.Color.FromArgb(128, 255, 255, 255);
 
-        // Set window size
+        // Window size
         this.AppWindow.MoveAndResize(new Windows.Graphics.RectInt32(0, 0, 1200, 800));
         this.AppWindow.Title = "UGA";
 
-        // Initialize taskbar progress
+        // Taskbar progress
         var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
         TaskbarProgress.Initialize(hwnd);
 
-        // Custom pane header as drag region for title bar
+        // Custom pane header as drag region
         RootNav.PaneHeader = new Grid
         {
             Height = 48,
@@ -53,39 +53,63 @@ public sealed partial class MainWindow : Window
 
     private void RootNav_Loaded(object sender, RoutedEventArgs e)
     {
+        RootNav.IsPaneOpen = false;
         RootNav.SelectedItem = RootNav.MenuItems[0];
         Navigate("home");
-        SetupNavCursors();
-    }
-
-    private void SetupNavCursors()
-    {
-        // Hand cursor on all NavigationView menu items
-        foreach (NavigationViewItem item in RootNav.MenuItems)
-            CursorHelper.SetHandOn(item);
-        foreach (NavigationViewItem item in RootNav.FooterMenuItems)
-            CursorHelper.SetHandOn(item);
-        // Pane toggle button (hamburger) - find via VisualTreeHelper
-        foreach (var child in FindVisualChildren<Button>(RootNav))
-            CursorHelper.SetHandOn(child);
-    }
-
-    private static IEnumerable<T> FindVisualChildren<T>(DependencyObject depObj) where T : DependencyObject
-    {
-        if (depObj == null) yield break;
-        for (int i = 0; i < Microsoft.UI.Xaml.Media.VisualTreeHelper.GetChildrenCount(depObj); i++)
-        {
-            var child = Microsoft.UI.Xaml.Media.VisualTreeHelper.GetChild(depObj, i);
-            if (child is T t) yield return t;
-            foreach (var grandchild in FindVisualChildren<T>(child))
-                yield return grandchild;
-        }
     }
 
     private void RootNav_SelectionChanged(NavigationView sender, NavigationViewSelectionChangedEventArgs args)
     {
         if (args.SelectedItemContainer is NavigationViewItem item && item.Tag is string tag)
+        {
+            if (tag is "undo" or "clear" or "newchat")
+            {
+                _ = HandleNavActionAsync(tag);
+                RootNav.SelectedItem = RootNav.MenuItems[0];
+                return;
+            }
             Navigate(tag);
+        }
+    }
+
+    private async System.Threading.Tasks.Task HandleNavActionAsync(string action)
+    {
+        RootNav.IsPaneOpen = false;
+
+        if (ContentFrame.Content is not HomePage page) return;
+
+        var (title, message) = action switch
+        {
+            "undo" => ("Undo Last Change", "Are you sure you want to undo the last file change made by the agent?"),
+            "clear" => ("Clear Chat History", "Are you sure you want to clear all chat messages? This cannot be undone."),
+            "newchat" => ("New Conversation", "Start a new conversation? Current chat history will be cleared."),
+            _ => ("", "")
+        };
+
+        var dlg = new ContentDialog
+        {
+            Title = title,
+            Content = new TextBlock
+            {
+                Text = message,
+                TextWrapping = TextWrapping.Wrap,
+                Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.White)
+            },
+            PrimaryButtonText = "Confirm",
+            CloseButtonText = "Cancel",
+            DefaultButton = ContentDialogButton.Primary,
+            XamlRoot = ContentFrame.XamlRoot,
+        };
+
+        if (await dlg.ShowAsync() == ContentDialogResult.Primary)
+        {
+            switch (action)
+            {
+                case "undo": page.ExecuteUndo(); break;
+                case "clear": page.ExecuteClearChat(); break;
+                case "newchat": page.ExecuteNewChat(); break;
+            }
+        }
     }
 
     private void Navigate(string tag)

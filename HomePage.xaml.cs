@@ -34,13 +34,13 @@ public sealed partial class HomePage : Page
     }
 
     /// <summary>
-    /// Sets pointer hand cursor on enter, reverts on leave.
-    /// Uses ProtectedCursor (WindowsAppSDK 1.3+).
+    /// Sets hand cursor via Win32 SetCursor on pointer enter/leave.
+    /// ProtectedCursor is protected in WinUI 3, so we use P/Invoke.
     /// </summary>
     private static void SetHand(UIElement el)
     {
-        el.PointerEntered += (_, _) => el.ProtectedCursor = InputSystemCursor.Create(InputSystemCursorShape.Hand);
-        el.PointerExited += (_, _) => el.ProtectedCursor = null;
+        el.PointerEntered += (_, _) => Win32Cursor.SetHand();
+        el.PointerExited += (_, _) => Win32Cursor.SetArrow();
     }
 
     private void InputTextBox_KeyDown(object sender, KeyRoutedEventArgs e)

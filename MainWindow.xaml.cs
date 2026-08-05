@@ -63,17 +63,24 @@ public sealed partial class MainWindow : Window
     {
         // Hand cursor on all NavigationView menu items
         foreach (NavigationViewItem item in RootNav.MenuItems)
-            SetHand(item);
+            Win32Cursor.SetHandOn(item);
         foreach (NavigationViewItem item in RootNav.FooterMenuItems)
-            SetHand(item);
-        // Pane toggle button (hamburger)
-        SetHand(RootNav.PaneToggleButton);
+            Win32Cursor.SetHandOn(item);
+        // Pane toggle button (hamburger) - find via VisualTreeHelper
+        foreach (var child in FindVisualChildren<Button>(RootNav))
+            Win32Cursor.SetHandOn(child);
     }
 
-    private static void SetHand(UIElement el)
+    private static IEnumerable<T> FindVisualChildren<T>(DependencyObject depObj) where T : DependencyObject
     {
-        el.PointerEntered += (_, _) => el.ProtectedCursor = InputSystemCursor.Create(InputSystemCursorShape.Hand);
-        el.PointerExited += (_, _) => el.ProtectedCursor = null;
+        if (depObj == null) yield break;
+        for (int i = 0; i < Microsoft.UI.Xaml.Media.VisualTreeHelper.GetChildrenCount(depObj); i++)
+        {
+            var child = Microsoft.UI.Xaml.Media.VisualTreeHelper.GetChild(depObj, i);
+            if (child is T t) yield return t;
+            foreach (var grandchild in FindVisualChildren<T>(child))
+                yield return grandchild;
+        }
     }
 
     private void RootNav_SelectionChanged(NavigationView sender, NavigationViewSelectionChangedEventArgs args)

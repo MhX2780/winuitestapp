@@ -51,10 +51,13 @@ public sealed partial class SettingsPage : Page
         SetHand(ThinkInclude);
     }
 
+    /// <summary>
+    /// Sets hand cursor via Win32 SetCursor on pointer enter/leave.
+    /// ProtectedCursor is protected in WinUI 3, so we use P/Invoke.
+    /// </summary>
     private static void SetHand(UIElement el)
     {
-        el.PointerEntered += (_, _) => el.ProtectedCursor = InputSystemCursor.Create(InputSystemCursorShape.Hand);
-        el.PointerExited += (_, _) => el.ProtectedCursor = null;
+        Win32Cursor.SetHandOn(el);
     }
 
     private void LoadUI()

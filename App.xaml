@@ -18,6 +18,9 @@
             <SolidColorBrush x:Key="ToolCallBorderBrush" Color="#60CDFF"/>
             <SolidColorBrush x:Key="AccentBrush" Color="#60CDFF"/>
 
+            <!-- Tool-call indicator bubble (replaces unreliable Tertiary brush) -->
+            <SolidColorBrush x:Key="ToolCallBubbleBrush" Color="#1C1C28"/>
+
             <!-- Navigation -->
             <SolidColorBrush x:Key="NavigationViewContentGridBorderBrush" Color="Transparent"/>
             <SolidColorBrush x:Key="NavigationViewDefaultPaneBackground" Color="Transparent"/>

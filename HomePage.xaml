@@ -100,7 +100,7 @@
                         <!-- Tool call indicator (center) -->
                         <Border CornerRadius="8" Padding="10,6" HorizontalAlignment="Center"
                                 BorderBrush="{ThemeResource AccentFillColorDefaultBrush}" BorderThickness="1"
-                                Background="{ThemeResource CardBackgroundFillColorTertiaryBrush}" MaxWidth="520">
+                                Background="{StaticResource ToolCallBubbleBrush}" MaxWidth="520">
                             <Border.Visibility>
                                 <Binding Path="IsToolCall" Converter="{StaticResource BoolToVisibilityConverter}"/>
                             </Border.Visibility>

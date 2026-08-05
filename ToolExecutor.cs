@@ -420,7 +420,7 @@ public static class ToolExecutor
     {
         var supportedExts = new HashSet<string> { ".py", ".js", ".jsx", ".ts", ".tsx", ".json", ".html", ".htm" };
         var results = new List<string>();
-        var checked = 0;
+        var numChecked = 0;
         try
         {
             foreach (var file in Directory.GetFiles(Ws, "*.*", SearchOption.AllDirectories))
@@ -432,16 +432,16 @@ public static class ToolExecutor
                     continue;
                 var ext = Path.GetExtension(file).ToLowerInvariant();
                 if (!supportedExts.Contains(ext)) continue;
-                checked++;
+                numChecked++;
                 var (result, _) = LintCheck(new() { { "path", rel } });
                 if (!result.StartsWith("No issues"))
                     results.Add($"{rel}:\n{result}");
             }
         }
         catch { }
-        if (checked == 0) return ("No supported files (.py/.js/.ts/.json/.html) found to check.", true);
-        if (results.Count == 0) return ($"Checked {checked} file(s) -- no issues found.", true);
-        return ($"Checked {checked} file(s), issues found in {results.Count}:\n\n" + string.Join("\n\n", results), true);
+        if (numChecked == 0) return ("No supported files (.py/.js/.ts/.json/.html) found to check.", true);
+        if (results.Count == 0) return ($"Checked {numChecked} file(s) -- no issues found.", true);
+        return ($"Checked {numChecked} file(s), issues found in {results.Count}:\n\n" + string.Join("\n\n", results), true);
     }
 
     // ===== DIFF =====
@@ -1198,7 +1198,7 @@ $b.Dispose()
             p.StartInfo = new ProcessStartInfo
             {
                 FileName = "powershell.exe",
-                Arguments = $"-NoProfile -NonInteractive -Command \"{psScript.Replace("\"", "\'\'\'\')}\"",
+                Arguments = string.Concat("-NoProfile -NonInteractive -Command \"", psScript.Replace("\"", "'"), "\""),
                 RedirectStandardOutput = true, RedirectStandardError = true,
                 UseShellExecute = false, CreateNoWindow = true
             };
@@ -1697,7 +1697,7 @@ $b.Dispose()
         var results = new List<string>();
 
         // Extract module docstring (first string literal if it's a standalone expression)
-        var moduleDocMatch = Regex.Match(source, @"^\s*\"\"\"([\s\S]*?)\"\"\"|^\s*'''([\s\S]*?)'''");
+        var moduleDocMatch = Regex.Match(source, @"^\s*""""([\s\S]*?)""""|^\s*'''([\s\S]*?)'''");
         if (moduleDocMatch.Success)
             results.Add($"Module docstring:\n  {(moduleDocMatch.Groups[1].Success ? moduleDocMatch.Groups[1].Value : moduleDocMatch.Groups[2].Value).Trim()}");
 
@@ -1730,7 +1730,7 @@ $b.Dispose()
     {
         if (startIndex >= source.Length) return null;
         // Find first triple-quote string after the match
-        var tripleQuote = Regex.Match(source.Substring(startIndex), @"\s*\"\"\"([\s\S]*?)\"\"\"|\s*'''([\s\S]*?)'''");
+        var tripleQuote = Regex.Match(source.Substring(startIndex), @"\s*""""([\s\S]*?)""""|\s*'''([\s\S]*?)'''");
         if (tripleQuote.Success)
         {
             var text = tripleQuote.Groups[1].Success ? tripleQuote.Groups[1].Value : tripleQuote.Groups[2].Value;

@@ -65,7 +65,6 @@ public class GeminiService : IDisposable
     public GeminiService()
     {
         CurrentModel = ConfigManager.ModelChain.FirstOrDefault()?.Name ?? "gemini-2.5-flash";
-        _router.ActiveModel = CurrentModel;
         _router.OnModelSwitched += (model) =>
         {
             CurrentModel = model;
@@ -116,6 +115,7 @@ public class GeminiService : IDisposable
     /// </summary>
     private async Task<string> TryWithRetryAsync(List<Dictionary<string, object>> history, string sysPrompt, CancellationToken ct)
     {
+        string finalText = "";
         int totalAttempts = 0;
         int maxTotalAttempts = ConfigManager.RetriesPerModel * ConfigManager.ModelChain.Count * 3;
 

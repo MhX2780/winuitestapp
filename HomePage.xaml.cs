@@ -1,6 +1,7 @@
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Documents;
+using Newtonsoft.Json;
 
 namespace AdvaBrowser;
 
@@ -32,10 +33,12 @@ public sealed partial class HomePage : Page
     {
         if (sender is RichTextBlock rtb && rtb.DataContext is ChatMessage msg)
         {
-            rtb.Inlines.Clear();
+            rtb.Blocks.Clear();
+            var paragraph = new Paragraph();
             var inlines = MarkdownRenderer.ParseInlines(msg.Content ?? "");
             foreach (var inline in inlines)
-                rtb.Inlines.Add(inline);
+                paragraph.Inlines.Add(inline);
+            rtb.Blocks.Add(paragraph);
         }
     }
 

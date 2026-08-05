@@ -1612,6 +1612,7 @@ $b.Dispose()
             defaultTestPath = $"{parentPrefix}test_{stem}.py";
             var q = "\"\"\"";  // Python docstring quotes
             content = $"{q}Tests for {sourcePath}.{q}\nimport pytest\n\ndef test_{stem}_placeholder():\n    // TODO: import from '{stem}' and write real assertions\n    assert True\n";
+        }
         else if (ext is ".js" or ".jsx" or ".ts" or ".tsx")
         {
             defaultTestPath = $"{parentPrefix}{stem}.test{ext}";

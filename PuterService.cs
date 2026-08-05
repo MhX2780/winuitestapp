@@ -396,7 +396,7 @@ public class PuterService : IDisposable
         var json = await resp.Content.ReadAsStringAsync(ct);
         resp.EnsureSuccessStatusCode();
 
-        var data = JObject.Parse(json);
+        var data = JToken.Parse(json);
         JArray? entries = null;
 
         if (data is JObject obj)

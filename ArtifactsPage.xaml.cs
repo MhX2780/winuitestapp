@@ -1,6 +1,7 @@
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Documents;
+using Microsoft.UI.Xaml.Navigation;
 using Newtonsoft.Json;
 
 namespace AdvaBrowser;
@@ -226,7 +227,7 @@ public sealed partial class ArtifactsPage : Page
 
         // Apply syntax highlighting
         codeBox.TextDocument.SetText(Windows.UI.Text.TextSetOptions.None, code);
-        SyntaxHighlighter.ApplyHighlighting(codeBox.TextDocument, language);
+        SyntaxHighlighter.ApplyHighlighting(codeBox, language);
 
         mainStack.Children.Add(codeBox);
 

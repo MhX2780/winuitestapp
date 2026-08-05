@@ -1,5 +1,5 @@
 using System.Text.RegularExpressions;
-using Microsoft.UI.Text;
+using Microsoft.UI.Xaml.Controls;
 
 namespace AdvaBrowser;
 
@@ -27,12 +27,13 @@ public static class SyntaxHighlighter
     /// <summary>
     /// Applies syntax highlighting to a RichEditBox's TextDocument.
     /// </summary>
-    public static void ApplyHighlighting(ITextDocument doc, string language)
+    public static void ApplyHighlighting(RichEditBox box, string language)
     {
-        if (doc == null) return;
+        if (box == null) return;
 
+        var doc = box.TextDocument;
         string text;
-        doc.GetText(TextGetOptions.None, out text);
+        doc.GetText(Microsoft.UI.Text.TextGetOptions.None, out text);
         if (string.IsNullOrEmpty(text)) return;
 
         var lang = (language ?? "").ToLowerInvariant();

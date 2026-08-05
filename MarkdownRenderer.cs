@@ -256,7 +256,7 @@ public static class MarkdownRenderer
         };
 
         codeBox.TextDocument.SetText(Windows.UI.Text.TextSetOptions.None, code);
-        SyntaxHighlighter.ApplyHighlighting(codeBox.TextDocument, language);
+        SyntaxHighlighter.ApplyHighlighting(codeBox, language);
         stack.Children.Add(codeBox);
 
         card.Child = stack;

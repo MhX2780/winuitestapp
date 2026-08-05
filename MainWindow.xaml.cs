@@ -18,18 +18,14 @@ public sealed partial class MainWindow : Window
         this.AppWindow.Title = "UGA";
 
         // Start maximized
-        this.AppWindow.PreferredPresentation = AppWindowPresentationKind.Maximized;
-
-        // Position centered on screen (fallback for non-maximized)
         var displayArea = DisplayArea.GetFromWindowId(AppWindow.Id, DisplayAreaFallback.Primary);
         if (displayArea != null)
         {
-            var centerX = (displayArea.WorkArea.Width - WINDOW_WIDTH) / 2;
-            var centerY = (displayArea.WorkArea.Height - WINDOW_HEIGHT) / 2;
             this.AppWindow.MoveAndResize(new Windows.Graphics.RectInt32(
-                displayArea.WorkArea.X + Math.Max(0, centerX),
-                displayArea.WorkArea.Y + Math.Max(0, centerY),
-                WINDOW_WIDTH, WINDOW_HEIGHT));
+                displayArea.WorkArea.X,
+                displayArea.WorkArea.Y,
+                displayArea.WorkArea.Width,
+                displayArea.WorkArea.Height));
         }
 
         var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
@@ -55,7 +51,7 @@ public sealed partial class MainWindow : Window
         ApplyTheme(ConfigManager.Settings.ThemeMode);
 
         // Listen for system theme changes when in Auto mode
-        UISettings uiSettings = new();
+        Microsoft.UI.ViewManagement.UISettings uiSettings = new();
         uiSettings.ColorValuesChanged += (s, e) =>
         {
             if (ConfigManager.Settings.ThemeMode == "auto")

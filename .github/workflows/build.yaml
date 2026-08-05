@@ -1,0 +1,82 @@
+name: Build AdvaBrowser
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-2025
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Pin .NET 8
+      shell: pwsh
+      run: |- 
+        Set-Content -Path 'global.json' -Value '{"sdk":{"version":"8.0.400","rollForward":"latestFeature"}}'
+        dotnet --version
+
+    - name: Setup MSBuild
+      uses: microsoft/setup-msbuild@v2
+
+    - name: Restore
+      run: dotnet restore AdvaBrowser.sln
+
+    - name: Build with MSBuild
+      id: build
+      shell: pwsh
+      run: |- 
+        msbuild AdvaBrowser.csproj /p:Configuration=Release /p:Platform=x64 /v:detailed 2>&1 | Tee-Object -FilePath build-log.txt
+        Write-Host "BUILD EXIT CODE: $LASTEXITCODE"
+      continue-on-error: true
+
+    - name: Extract errors
+      if: steps.build.outcome == 'failure'
+      shell: pwsh
+      run: |- 
+        Write-Host '=== ERRORS ==='
+        Select-String -Path build-log.txt -Pattern 'error ' | Select-Object -First 50 | ForEach-Object { Write-Host $_.Line }
+
+    - name: Find EXE
+      id: findexe
+      shell: pwsh
+      run: |- 
+        $exe = Get-ChildItem -Path '.' -Recurse -Filter 'AdvaBrowser.exe' -ErrorAction SilentlyContinue |
+          Where-Object { $_.FullName -like '*bin*Release*' } |
+          Select-Object -First 1
+        if ($exe) {
+          echo "exe_found=true" >> $env:GITHUB_OUTPUT
+          echo "exe_dir=$($exe.DirectoryName)" >> $env:GITHUB_OUTPUT
+          Write-Host "EXE: $($exe.FullName)"
+        } else {
+          echo "exe_found=false" >> $env:GITHUB_OUTPUT
+          Write-Host "EXE not found under bin/Release (any depth)"
+        }
+
+    - name: Create Release
+      if: steps.findexe.outputs.exe_found == 'true' && github.event_name == 'push'
+      shell: pwsh
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |- 
+        $tag = "v1.0.0-$(Get-Date -Format 'yyyyMMdd-HHmmss')"
+        $dir = "${{ steps.findexe.outputs.exe_dir }}"
+        $zip = "AdvaBrowser-$tag.zip"
+        Compress-Archive -Path "$dir\*" -DestinationPath $zip
+        $body = @{ tag_name=$tag; target_commitish=$env:GITHUB_SHA; name="Release $tag"; body="AdvaBrowser $tag"; draft=$false; prerelease=$false } | ConvertTo-Json -Compress
+        $h = @{ "Authorization"="token $env:GITHUB_TOKEN"; "Accept"="application/vnd.github+json" }
+        $r = Invoke-RestMethod -Uri "$env:GITHUB_API_URL/repos/$env:GITHUB_REPOSITORY/releases" -Method Post -Headers $h -Body $body -ContentType 'application/json'
+        $url = $r.upload_url -replace '\{\?name,label\}', ''
+        Invoke-RestMethod -Uri "${url}?name=$zip" -Method Post -Headers $h -Body ([IO.File]::ReadAllBytes("$PWD\$zip")) -ContentType 'application/zip' | Out-Null
+        Write-Host "RELEASE: $($r.html_url)"
+
+    - name: Upload log on failure
+      if: steps.build.outcome == 'failure'
+      uses: actions/upload-artifact@v4
+      with:
+        name: build-log
+        path: build-log.txt

@@ -44,9 +44,14 @@
             <ListView.ItemTemplate>
                 <DataTemplate x:DataType="local:ChatMessage">
                     <Grid Padding="4,2">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
 
                         <!-- User message bubble (right-aligned, black text) -->
-                        <Border x:Name="UserBubble"
+                        <Border x:Name="UserBubble" Grid.Row="0"
                                 Background="{ThemeResource AccentFillColorDefaultBrush}"
                                 CornerRadius="12,12,4,12" Padding="14,10"
                                 HorizontalAlignment="Right" MaxWidth="700" Margin="60,0,0,0">
@@ -58,7 +63,7 @@
                         </Border>
 
                         <!-- Model response (left-aligned, NO bubble, with Markdown) -->
-                        <StackPanel HorizontalAlignment="Left" MaxWidth="700" Margin="0,0,60,0">
+                        <StackPanel Grid.Row="1" HorizontalAlignment="Left" MaxWidth="700" Margin="0,0,60,0">
                             <StackPanel.Visibility>
                                 <Binding Path="Role" Converter="{StaticResource RoleToVisibilityConverter}" ConverterParameter="model"/>
                             </StackPanel.Visibility>
@@ -71,11 +76,12 @@
                         </StackPanel>
 
                         <!-- Tool call card -->
-                        <Border Background="{ThemeResource CardBackgroundFillColorSecondaryBrush}"
+                        <Border Grid.Row="2"
+                                Background="{ThemeResource CardBackgroundFillColorSecondaryBrush}"
                                 BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
                                 BorderThickness="1"
                                 CornerRadius="8" Padding="12,10"
-                                HorizontalAlignment="Left" MaxWidth="520" Margin="0,0,60,0">
+                                HorizontalAlignment="Left" MaxWidth="700" Margin="0,0,60,0">
                             <Border.Visibility>
                                 <Binding Path="IsToolCall" Converter="{StaticResource BoolToVisibilityConverter}"/>
                             </Border.Visibility>

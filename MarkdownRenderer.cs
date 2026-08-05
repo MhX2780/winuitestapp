@@ -73,6 +73,20 @@ public static class MarkdownRenderer
                 continue;
             }
 
+            // Horizontal rule: ---, ***, ___ (must be on its own line, at least 3 chars)
+            var hrMatch = Regex.Match(line.Trim(), @"^(-{3,}|\*{3,}|_{3,})\s*$");
+            if (hrMatch.Success)
+            {
+                // Flush any accumulated text
+                if (currentParagraph.Inlines.Count > 0)
+                {
+                    blocks.Add(currentParagraph);
+                    currentParagraph = new Microsoft.UI.Xaml.Documents.Paragraph();
+                }
+                blocks.Add(CreateHorizontalRule());
+                continue;
+            }
+
             // Parse inline formatting into current paragraph
             ParseInlineLine(line, currentParagraph.Inlines);
             currentParagraph.Inlines.Add(new Microsoft.UI.Xaml.Documents.LineBreak());
@@ -131,6 +145,28 @@ public static class MarkdownRenderer
             results.Add((lang, code, firstLine));
         }
         return results;
+    }
+
+    // ─── Horizontal Rule ───
+
+    private static Microsoft.UI.Xaml.Documents.Paragraph CreateHorizontalRule()
+    {
+        var paragraph = new Microsoft.UI.Xaml.Documents.Paragraph();
+
+        var border = new Microsoft.UI.Xaml.Controls.Border
+        {
+            Height = 1,
+            Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(
+                Microsoft.UI.Color.FromArgb(255, 80, 80, 80)),
+            HorizontalAlignment = Microsoft.UI.Xaml.HorizontalAlignment.Stretch,
+            Margin = new Microsoft.UI.Xaml.Thickness(0, 8, 0, 8),
+        };
+
+        var container = new Microsoft.UI.Xaml.Documents.InlineUIContainer { Child = border };
+        paragraph.Inlines.Add(container);
+        paragraph.Inlines.Add(new Microsoft.UI.Xaml.Documents.LineBreak());
+
+        return paragraph;
     }
 
     // ─── Code Card with Syntax Highlighting ───

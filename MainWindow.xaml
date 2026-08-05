@@ -30,7 +30,7 @@
             </NavigationViewItem>
             <NavigationViewItem Content="Artifacts" Tag="artifacts" ToolTipService.ToolTip="Artifacts">
                 <NavigationViewItem.Icon>
-                    <SymbolIcon Symbol="Code" />
+                    <FontIcon Glyph="&#xE943;" FontSize="16" />
                 </NavigationViewItem.Icon>
             </NavigationViewItem>
         </NavigationView.MenuItems>

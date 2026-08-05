@@ -244,7 +244,6 @@ public static class MarkdownRenderer
             TextWrapping = Microsoft.UI.Xaml.TextWrapping.Wrap,
             FontFamily = new Microsoft.UI.Xaml.Media.FontFamily("Cascadia Code"),
             FontSize = 13,
-            IsTextSelectionEnabled = true,
             Padding = new Microsoft.UI.Xaml.Thickness(12, 8, 12, 10),
             Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(
                 Windows.UI.Color.FromArgb(255, 25, 25, 25)),
@@ -255,7 +254,7 @@ public static class MarkdownRenderer
             MinHeight = 40,
         };
 
-        codeBox.TextDocument.SetText(Windows.UI.Text.TextSetOptions.None, code);
+        codeBox.TextDocument.SetText(Microsoft.UI.Text.TextSetOptions.None, code);
         SyntaxHighlighter.ApplyHighlighting(codeBox, language);
         stack.Children.Add(codeBox);
 

@@ -222,11 +222,10 @@ public sealed partial class ArtifactsPage : Page
             MinHeight = 60,
             MaxHeight = 400,
             HorizontalAlignment = HorizontalAlignment.Stretch,
-            IsTextSelectionEnabled = true,
         };
 
         // Apply syntax highlighting
-        codeBox.TextDocument.SetText(Windows.UI.Text.TextSetOptions.None, code);
+        codeBox.TextDocument.SetText(Microsoft.UI.Text.TextSetOptions.None, code);
         SyntaxHighlighter.ApplyHighlighting(codeBox, language);
 
         mainStack.Children.Add(codeBox);

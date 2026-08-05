@@ -1,4 +1,5 @@
 using System.Text.RegularExpressions;
+using Microsoft.UI.Text;
 using Microsoft.UI.Xaml.Controls;
 
 namespace AdvaBrowser;
@@ -52,7 +53,7 @@ public static class SyntaxHighlighter
                 if (fmt == null) continue;
 
                 fmt.ForegroundColor = token.Color;
-                fmt.Bold = token.Bold;
+                fmt.Bold = token.Bold ? FormatEffect.On : FormatEffect.Off;
             }
             catch { }
         }

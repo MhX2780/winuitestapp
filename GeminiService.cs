@@ -94,6 +94,7 @@ public class GeminiService : IDisposable
             }
 
             var parts = GetParts(respObj);
+            CrashLogger.Log("INFO", $"Parts found: {parts.Count}, hasText={parts.Any(p => p.ContainsKey("text"))}, hasFc={HasFunctionCall(parts)}");
 
             // Check if API returned an error block instead of content
             if (parts.Count == 0)
@@ -117,11 +118,13 @@ public class GeminiService : IDisposable
             {
                 // No tools needed — emit text directly
                 finalText = ExtractText(parts);
+                CrashLogger.Log("INFO", $"Extracted text, length={finalText.Length}, first80={finalText.Substring(0, Math.Min(80, finalText.Length))}");
             }
 
             System.Diagnostics.Debug.WriteLine($"[Gemini] Final text length={finalText.Length}");
 
             // Emit the response to UI
+            CrashLogger.Log("INFO", $"Emitting to UI: finalText length={finalText.Length}");
             if (!string.IsNullOrEmpty(finalText))
             {
                 OnTokenReceived?.Invoke(finalText);

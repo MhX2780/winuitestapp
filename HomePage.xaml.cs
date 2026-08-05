@@ -204,13 +204,18 @@ public sealed partial class HomePage : Page
         {
             if (string.IsNullOrEmpty(t)) return;
             if (_streamingMsg == null)
+            {
                 _streamingMsg = new()
                 {
                     Role = "model", Content = t,
                     IsStreaming = true, ModelName = _service?.CurrentModel
                 };
+                _messages.Add(_streamingMsg); // CRITICAL: must add to bound list!
+            }
             else
+            {
                 _streamingMsg.Content += t;
+            }
             Bind();
             ScrollBottom();
         });
@@ -276,7 +281,7 @@ public sealed partial class HomePage : Page
             {
                 _streamingMsg.IsStreaming = false;
                 MemoryManager.LogMessage("model", _streamingMsg.Content, _streamingMsg.ModelName);
-                _streamingMsg = null;
+                _streamingMsg = null; // just clear ref; message stays in _messages
             }
             Bind();
             ScrollBottom();

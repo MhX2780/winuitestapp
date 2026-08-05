@@ -11,13 +11,11 @@ public sealed partial class MainWindow : Window
     {
         this.InitializeComponent();
 
-        // Extended title bar with tall height (from Content.md)
+        // Extended title bar (from Content.md)
         AppWindow.TitleBar.ExtendsContentIntoTitleBar = true;
-        if (AppWindow.TitleBar.ExtendsContentIntoTitleBar)
-            AppWindow.TitleBar.HeightOption = TitleBarHeightOption.Tall;
 
         // Set window size
-        this.AppWindow.Resize(new SizeInt32(1200, 800));
+        this.AppWindow.MoveAndResize(new Windows.Graphics.RectInt32(0, 0, 1200, 800));
         this.AppWindow.Title = "UGA";
 
         // Initialize taskbar progress

@@ -1,8 +1,18 @@
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Windows.Storage.Pickers;
+using System.Runtime.InteropServices;
 
 namespace AdvaBrowser;
+
+// WinRT interop for FolderPicker - desktop window association
+[ComImport]
+[Guid("79c084eb-0b6e-4e39-a787-5a99b9b53019")]
+[InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+internal interface IInitializeWithWindow
+{
+    void Initialize(IntPtr hwnd);
+}
 
 public sealed partial class SettingsPage : Page
 {
@@ -73,8 +83,9 @@ public sealed partial class SettingsPage : Page
             SuggestedStartLocation = PickerLocationId.DocumentsLibrary
         };
         picker.FileTypeFilter.Add("*");
-        WinRT.InitializeWithWindow.Initialize(
-            picker, WinRT.Interop.WindowNative.GetWindowHandle(App.MainWindow));
+        var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(App.MainWindow);
+        var interop = picker.As<IInitializeWithWindow>();
+        interop?.Initialize(hwnd);
         var folder = await picker.PickSingleFolderAsync();
         if (folder != null)
         {

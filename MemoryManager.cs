@@ -96,7 +96,7 @@ public static class MemoryManager
         };
         foreach (var e in entries)
         {
-            var when = DateTimeOffset.FromUnixTimeSeconds(e.Timestamp).DateTime.ToString("HH:mm:ss");
+            var when = DateTimeOffset.FromUnixTimeSeconds((long)e.Timestamp).DateTime.ToString("HH:mm:ss");
             var status = e.Success ? "OK" : "FAIL";
             var argsStr = string.Join(", ", e.Args.Select(kv => $"{kv.Key}={kv.Value}"));
             lines.Add($"- [{when}] {status} {e.ToolName}({argsStr}) -> {e.Result}");

@@ -234,7 +234,7 @@ public static class MarkdownRenderer
             else if (match.Groups[3].Success) // *italic*
             {
                 var run = new Microsoft.UI.Xaml.Documents.Run { Text = match.Groups[3].Value };
-                run.FontStyle = Microsoft.UI.Text.FontStyle.Italic;
+                run.FontStyle = Windows.UI.Text.FontStyle.Italic;
                 result.Add(run);
             }
             else if (match.Groups[4].Success) // `code`
@@ -267,7 +267,7 @@ public static class MarkdownRenderer
         {
             run.FontFamily = new Microsoft.UI.Xaml.Media.FontFamily("Cascadia Code");
             run.Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(
-                Microsoft.UI.Color.FromArgb(255, 100, 200, 255));
+                Windows.UI.Color.FromArgb(255, 100, 200, 255));
         }
         return run;
     }

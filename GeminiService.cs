@@ -35,29 +35,28 @@ public class GeminiService : IDisposable
     {
         var memCtx = MemoryManager.MemoryAsContextString();
         var execCtx = MemoryManager.ExecutionLogAsContextString();
-        return $"""
-            You are an intelligent coding and file-management assistant, similar to Gemini CLI. You have a wide set of tools available:
-            - File operations: create_file, read_file, edit_file, delete_file, move_file, rename_file, copy_file, create_folder.
-            - Search & discovery: find_file, search_in_files, list_files, detect_language, file_stats, count_files, count_todos, replace_in_files.
-            - Git: git_clone, git_status, git_diff, git_log, git_commit.
-            - Execution: run_command, start_background_process, list_background_processes, stop_background_process, create_zip, extract_zip.
-            - Code quality: lint_check, check_file_syntax_all.
-            - Diff: diff_preview, compare_files.
-            - Undo: undo_last_change.
-            - Network: check_port_in_use, http_request.
-            - Environment: env_var_check.
-            - System: Available_Active_Windows, List_System_Processes.
-            Important rules:
-            - Actually use the tools to carry out any file or command-related request.
-            - Prefer the specific tool over run_command when one exists.
-            - Be precise and concise in your text replies.
-            - If a tool returns an error, explain what happened and suggest a fix.
-            - When creating files, explain what you created and why.
+        return $@"You are an intelligent coding and file-management assistant, similar to Gemini CLI. You have a wide set of tools available:
+- File operations: create_file, read_file, edit_file, delete_file, move_file, rename_file, copy_file, create_folder.
+- Search & discovery: find_file, search_in_files, list_files, detect_language, file_stats, count_files, count_todos, replace_in_files.
+- Git: git_clone, git_status, git_diff, git_log, git_commit.
+- Execution: run_command, start_background_process, list_background_processes, stop_background_process, create_zip, extract_zip.
+- Code quality: lint_check, check_file_syntax_all.
+- Diff: diff_preview, compare_files.
+- Undo: undo_last_change.
+- Network: check_port_in_use, http_request.
+- Environment: env_var_check.
+- System: Available_Active_Windows, List_System_Processes.
+Important rules:
+- Actually use the tools to carry out any file or command-related request.
+- Prefer the specific tool over run_command when one exists.
+- Be precise and concise in your text replies.
+- If a tool returns an error, explain what happened and suggest a fix.
+- When creating files, explain what you created and why.
 
-            {memCtx}
+{memCtx}
 
-            {execCtx}
-            """;
+{execCtx}
+";
     }
 
     private string ApiKey => _router.GetApiKey() ?? ConfigManager.GeminiApiKey ?? "";
@@ -518,18 +517,15 @@ public class MultiAgentOrchestrator
     // ── Classification ──
     private async Task<(string complexity, string taskType, string reasoning)> ClassifyAsync(string message, string model, CancellationToken ct)
     {
-        var prompt = $"""Classify this user request for a coding assistant.
-
-User request: "{message}"
-
-Respond in this exact JSON format only, nothing else:
-{{"complexity": "simple" or "moderate" or "complex", "task_type": "<type>", "reasoning": "<brief>"}}
-
-task_type can be: file_operation, search, git, execution, code_quality, multi_step, general, unknown
-complexity rules:
-- simple: single straightforward action (e.g. "read a file", "what is X")
-- moderate: 2-3 related steps (e.g. "create a Python script with error handling")
-- complex: 4+ steps, multi-file, or architectural changes""";
+        var prompt = $"Classify this user request for a coding assistant.\n\n" +
+            $"User request: \"{message}\"\n\n" +
+            "Respond in this exact JSON format only, nothing else:\n" +
+            "{\"complexity\": \"simple\" or \"moderate\" or \"complex\", \"task_type\": \"<type>\", \"reasoning\": \"<brief>\"}\n\n" +
+            "task_type can be: file_operation, search, git, execution, code_quality, multi_step, general, unknown\n" +
+            "complexity rules:\n" +
+            "- simple: single straightforward action (e.g. \"read a file\", \"what is X\")\n" +
+            "- moderate: 2-3 related steps (e.g. \"create a Python script with error handling\")\n" +
+            "- complex: 4+ steps, multi-file, or architectural changes";
 
         try
         {
@@ -562,16 +558,13 @@ complexity rules:
     // ── Planning ──
     private async Task<List<PlanStep>> PlanAsync(string message, string model, string complexity, string taskType, CancellationToken ct)
     {
-        var prompt = $"""You are a planning agent. Break down this request into clear, sequential steps.
-
-User request: "{message}"
-Classified as: {complexity} complexity, type: {taskType}
-
-Respond in this exact JSON array format only:
-[{{"description": "Step 1 description", "actions": ["action1", "action2"]}}, ...]
-
-Each step should be a concrete, executable action. Use tools where appropriate.
-Keep it to 2-5 steps for moderate, 3-8 for complex.""";
+        var prompt = $"You are a planning agent. Break down this request into clear, sequential steps.\n\n" +
+            $"User request: \"{message}\"\n" +
+            $"Classified as: {complexity} complexity, type: {taskType}\n\n" +
+            "Respond in this exact JSON array format only:\n" +
+            "[{\"description\": \"Step 1 description\", \"actions\": [\"action1\", \"action2\"]}, ...]\n\n" +
+            "Each step should be a concrete, executable action. Use tools where appropriate.\n" +
+            "Keep it to 2-5 steps for moderate, 3-8 for complex.";
 
         try
         {
@@ -619,17 +612,12 @@ Keep it to 2-5 steps for moderate, 3-8 for complex.""";
     private async Task<(bool passed, string feedback)> ReviewAsync(string originalRequest, List<PlanStep> steps, string model, CancellationToken ct)
     {
         var summary = string.Join("\n", steps.Select(s => $"- Step {s.Number}: {s.Description} → {(s.Status == "done" ? "OK" : "FAILED")}"));
-        var prompt = $"""Review the execution results for this request:
-
-Original: "{originalRequest}"
-
-Steps executed:
-{summary}
-
-Respond in this exact JSON format only:
-{{"passed": true/false, "feedback": "<feedback or empty if passed>"}}
-
-Check: Were all steps completed? Does the result fulfill the request?""";
+        var prompt = $"Review the execution results for this request:\n\n" +
+            $"Original: \"{originalRequest}\"\n\n" +
+            $"Steps executed:\n{summary}\n\n" +
+            "Respond in this exact JSON format only:\n" +
+            "{\"passed\": true/false, \"feedback\": \"<feedback or empty if passed>\"}\n\n" +
+            "Check: Were all steps completed? Does the result fulfill the request?";
 
         try
         {

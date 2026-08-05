@@ -6,17 +6,13 @@ namespace AdvaBrowser;
 
 /// <summary>
 /// Cursor helper for WinUI 3 Desktop.
-/// Uses reflection to access UIElement.ProtectedCursor (protected property)
-/// with InputCursor.CreateFromKnownCursor (available since Windows App SDK 1.5).
-/// Falls back to Win32 SetCursor via DispatcherQueueTimer if reflection fails.
+/// Strategy 1: Reflection to set UIElement.ProtectedCursor with InputCursor.
+/// Strategy 2: Win32 SetCursor via DispatcherQueue.CreateTimer (resolved via reflection).
 /// </summary>
 public static class CursorHelper
 {
-    // Cache the PropertyInfo for ProtectedCursor
     private static readonly PropertyInfo? ProtectedCursorProp;
-    private static readonly PropertyInfo? InputCursorProp;
 
-    // Win32 fallback
     [DllImport("user32.dll", SetLastError = true)]
     private static extern IntPtr SetCursor(IntPtr hCursor);
 
@@ -26,41 +22,70 @@ public static class CursorHelper
     private static readonly IntPtr HandCursorHandle = LoadCursor(IntPtr.Zero, 32649); // IDC_HAND
     private static readonly IntPtr ArrowCursorHandle = LoadCursor(IntPtr.Zero, 32512); // IDC_ARROW
 
-    // Cache the InputCursor objects (they are expensive to create)
     private static object? _cachedHandCursor;
-    private static object? _cachedArrowCursor;
     private static bool _cursorInitFailed;
+    private static bool _reflectionWorked;
+
+    // DispatcherQueue.CreateTimer method (resolved via reflection)
+    private static readonly MethodInfo? CreateTimerMethod;
+    private static readonly PropertyInfo? TimerIntervalProp;
+    private static readonly PropertyInfo? TimerIsRepeatingProp;
+    private static readonly MethodInfo? TimerStartMethod;
+    private static readonly MethodInfo? TimerStopMethod;
+    private static readonly EventInfo? TimerTickEvent;
 
     static CursorHelper()
     {
         try
         {
-            // Try to find ProtectedCursor property on UIElement (it's protected)
             ProtectedCursorProp = typeof(UIElement).GetProperty(
                 "ProtectedCursor",
                 BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public);
 
-            CrashLogger.Log("INFO", $"ProtectedCursor property found: {ProtectedCursorProp != null}, CanWrite: {ProtectedCursorProp?.CanWrite}");
+            CrashLogger.Log("INFO", $"ProtectedCursor found: {ProtectedCursorProp != null}, CanWrite: {ProtectedCursorProp?.CanWrite}");
         }
         catch (Exception ex)
         {
-            CrashLogger.Log("WARN", $"Failed to find ProtectedCursor property: {ex.Message}");
+            CrashLogger.Log("WARN", $"ProtectedCursor lookup failed: {ex.Message}");
+        }
+
+        try
+        {
+            // Resolve DispatcherQueueTimer type and its members via reflection
+            var dqType = Type.GetType("Microsoft.UI.Dispatching.DispatcherQueue, Microsoft.WinUI") ??
+                         Type.GetType("Microsoft.UI.Dispatching.DispatcherQueue");
+            if (dqType != null)
+            {
+                CreateTimerMethod = dqType.GetMethod("CreateTimer");
+                CrashLogger.Log("INFO", $"CreateTimer found: {CreateTimerMethod != null}");
+            }
+
+            var timerType = Type.GetType("Microsoft.UI.Dispatching.DispatcherQueueTimer, Microsoft.WinUI") ??
+                            Type.GetType("Microsoft.UI.Dispatching.DispatcherQueueTimer");
+            if (timerType != null)
+            {
+                TimerIntervalProp = timerType.GetProperty("Interval");
+                TimerIsRepeatingProp = timerType.GetProperty("IsRepeating");
+                TimerStartMethod = timerType.GetMethod("Start");
+                TimerStopMethod = timerType.GetMethod("Stop");
+                TimerTickEvent = timerType.GetEvent("Tick");
+                CrashLogger.Log("INFO", $"DispatcherQueueTimer members resolved: Interval={TimerIntervalProp != null}, Start={TimerStartMethod != null}, Tick={TimerTickEvent != null}");
+            }
+        }
+        catch (Exception ex)
+        {
+            CrashLogger.Log("WARN", $"DispatcherQueueTimer reflection failed: {ex.Message}");
         }
     }
 
-    /// <summary>
-    /// Create an InputCursor via InputCursor.CreateFromKnownCursor.
-    /// </summary>
     private static object? CreateInputCursor(int kind)
     {
         try
         {
-            // Microsoft.UI.Input.InputCursor.CreateFromKnownCursor(InputCursorKind)
             var inputCursorType = Type.GetType("Microsoft.UI.Input.InputCursor, Microsoft.WinUI") ??
                                   Type.GetType("Microsoft.UI.Input.InputCursor");
             if (inputCursorType == null) return null;
 
-            // InputCursorKind enum
             var cursorKindType = Type.GetType("Microsoft.UI.Input.InputCursorKind, Microsoft.WinUI") ??
                                  Type.GetType("Microsoft.UI.Input.InputCursorKind");
             if (cursorKindType == null) return null;
@@ -71,14 +96,11 @@ public static class CursorHelper
         }
         catch (Exception ex)
         {
-            CrashLogger.Log("WARN", $"Failed to create InputCursor: {ex.Message}");
+            CrashLogger.Log("WARN", $"CreateInputCursor failed: {ex.Message}");
             return null;
         }
     }
 
-    /// <summary>
-    /// Get the hand cursor (InputCursor or null).
-    /// </summary>
     private static object? GetHandCursor()
     {
         if (_cursorInitFailed) return null;
@@ -90,9 +112,6 @@ public static class CursorHelper
         catch { _cursorInitFailed = true; return null; }
     }
 
-    /// <summary>
-    /// Set ProtectedCursor on a UIElement via reflection.
-    /// </summary>
     private static bool SetProtectedCursor(UIElement el, object cursor)
     {
         if (ProtectedCursorProp == null || !ProtectedCursorProp.CanWrite) return false;
@@ -103,55 +122,86 @@ public static class CursorHelper
         }
         catch (Exception ex)
         {
-            CrashLogger.Log("WARN", $"Failed to set ProtectedCursor: {ex.Message}");
+            CrashLogger.Log("WARN", $"SetProtectedCursor failed: {ex.Message}");
             return false;
         }
     }
 
-    /// <summary>
-    /// Attaches a hand cursor to a UIElement.
-    /// Strategy 1: Set ProtectedCursor via reflection (WinUI 3 proper way).
-    /// Strategy 2: Fall back to Win32 SetCursor via DispatcherQueueTimer.
-    /// </summary>
     public static void SetHandOn(UIElement el)
     {
-        // Strategy 1: Try to use InputCursor + ProtectedCursor via reflection
-        var handCursor = GetHandCursor();
-        if (handCursor != null && SetProtectedCursor(el, handCursor))
+        if (_reflectionWorked)
         {
-            // If reflection worked, we're done — no need for PointerEntered/Exited
+            // Strategy 1 already worked before — use it directly
+            var handCursor = GetHandCursor();
+            if (handCursor != null)
+            {
+                SetProtectedCursor(el, handCursor);
+                return;
+            }
+        }
+
+        // Try Strategy 1 once
+        var cursor = GetHandCursor();
+        if (cursor != null && SetProtectedCursor(el, cursor))
+        {
+            _reflectionWorked = true;
+            CrashLogger.Log("INFO", "Hand cursor set via ProtectedCursor reflection");
             return;
         }
 
-        // Strategy 2: Win32 SetCursor with DispatcherQueueTimer fallback
+        // Strategy 2: Win32 SetCursor via reflection-based timer
         SetHandViaWin32(el);
     }
 
-    /// <summary>
-    /// Win32 SetCursor fallback with DispatcherQueueTimer to persist the cursor.
-    /// </summary>
     private static void SetHandViaWin32(UIElement el)
     {
-        DispatcherQueueTimer? timer = null;
+        object? timerObj = null;
+        Delegate? tickHandler = null;
 
         el.PointerEntered += (_, _) =>
         {
             SetCursor(HandCursorHandle);
-            var dq = el.DispatcherQueue;
-            if (dq != null && dq.HasThreadAccess)
+
+            if (CreateTimerMethod == null || TimerIntervalProp == null ||
+                TimerIsRepeatingProp == null || TimerStartMethod == null || TimerTickEvent == null)
             {
-                try
+                return;
+            }
+
+            try
+            {
+                var dq = el.DispatcherQueue;
+                if (dq == null) return;
+
+                // Create timer via reflection: dq.CreateTimer()
+                timerObj = CreateTimerMethod.Invoke(dq, null);
+                if (timerObj == null) return;
+
+                // timer.Interval = TimeSpan.FromMilliseconds(16)
+                TimerIntervalProp.SetValue(timerObj, TimeSpan.FromMilliseconds(16));
+                // timer.IsRepeating = true
+                TimerIsRepeatingProp.SetValue(timerObj, true);
+
+                // timer.Tick += handler
+                // Create a delegate of the correct type for the Tick event
+                var tickType = TimerTickEvent.EventHandlerType;
+                if (tickType != null && tickHandler == null)
                 {
-                    timer = dq.CreateTimer();
-                    timer.Interval = TimeSpan.FromMilliseconds(16);
-                    timer.IsRepeating = true;
-                    timer.Tick += (_, _) => SetCursor(HandCursorHandle);
-                    timer.Start();
+                    // Create an open delegate: static void TickHandler(object sender, object e)
+                    var tickMethod = typeof(CursorHelper).GetMethod(nameof(Win32TickHandler), BindingFlags.NonPublic | BindingFlags.Static);
+                    tickHandler = Delegate.CreateDelegate(tickType, tickMethod!);
                 }
-                catch (Exception ex)
+                if (tickHandler != null)
                 {
-                    CrashLogger.Log("WARN", $"Cursor timer failed: {ex.Message}");
+                    TimerTickEvent.AddEventHandler(timerObj, tickHandler);
                 }
+
+                // timer.Start()
+                TimerStartMethod.Invoke(timerObj, null);
+            }
+            catch (Exception ex)
+            {
+                CrashLogger.Log("WARN", $"Win32 cursor timer failed: {ex.Message}");
             }
         };
 
@@ -159,11 +209,17 @@ public static class CursorHelper
         {
             try
             {
-                timer?.Stop();
-                timer = null;
+                if (timerObj != null && TimerStopMethod != null)
+                {
+                    TimerStopMethod.Invoke(timerObj, null);
+                    timerObj = null;
+                }
             }
             catch { }
             SetCursor(ArrowCursorHandle);
         };
     }
+
+    // Static handler for the Win32 cursor tick (called via reflection delegate)
+    private static void Win32TickHandler(object? sender, object? e) => SetCursor(HandCursorHandle);
 }

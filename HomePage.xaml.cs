@@ -8,6 +8,7 @@ namespace AdvaBrowser;
 public sealed partial class HomePage : Page
 {
     private GeminiService? _service;
+    private MultiAgentOrchestrator? _orchestrator;
     private CancellationTokenSource? _cts;
     private readonly List<ChatMessage> _messages = new();
     private ChatMessage? _streamingMsg;
@@ -356,7 +357,38 @@ public sealed partial class HomePage : Page
                     { "parts", (object)new List<object> { new Dictionary<string, object> { { "text", (object?)m.Content ?? "" } } } }
                 }).ToList();
 
-            await _service.SendStreamingAsync(history, text, _cts.Token);
+            // ── Multi-Agent path ──
+            if (ConfigManager.MultiAgentEnabled)
+            {
+                _orchestrator ??= new MultiAgentOrchestrator();
+                _orchestrator.OnEvent -= OnMultiAgentEvent;
+                _orchestrator.OnEvent += OnMultiAgentEvent;
+
+                var maResult = await _orchestrator.RunAsync(text, _cts.Token);
+                _orchestrator.OnEvent -= OnMultiAgentEvent;
+
+                if (!string.IsNullOrEmpty(maResult))
+                {
+                    // Multi-agent produced a result — display it
+                    _streamingMsg = new()
+                    {
+                        Role = "model", Content = maResult,
+                        ModelName = "Multi-Agent"
+                    };
+                    _messages.Add(_streamingMsg);
+                    Bind();
+                    ScrollBottom();
+                }
+                else
+                {
+                    // Simple task — fall back to normal chat
+                    await _service.SendStreamingAsync(history, text, _cts.Token);
+                }
+            }
+            else
+            {
+                await _service.SendStreamingAsync(history, text, _cts.Token);
+            }
         }
         catch (OperationCanceledException) { }
         catch (Exception ex)
@@ -441,6 +473,55 @@ public sealed partial class HomePage : Page
             _messages.Add(new() { Role = "system", Content = err });
             Bind();
             ScrollBottom();
+        });
+    }
+
+    private void OnMultiAgentEvent(MultiAgentEvent evt)
+    {
+        DispatcherQueue.TryEnqueue(() =>
+        {
+            switch (evt.Kind)
+            {
+                case "classified_result":
+                    var cx = evt.Data?.GetValueOrDefault("complexity") ?? "";
+                    var tt = evt.Data?.GetValueOrDefault("task_type") ?? "";
+                    StatusText.Text = $"Classified: {cx} / {tt}";
+                    break;
+                case "plan_ready":
+                    StatusText.Text = "Plan ready — executing steps...";
+                    break;
+                case "step_start":
+                    var stepNum = evt.Data?.GetValueOrDefault("step_number")?.ToString() ?? "?";
+                    var totalSteps = evt.Data?.GetValueOrDefault("total_steps")?.ToString() ?? "?";
+                    var desc = evt.Data?.GetValueOrDefault("description")?.ToString() ?? "";
+                    StatusText.Text = $"Step {stepNum}/{totalSteps}: {desc}";
+                    _messages.Add(new()
+                    {
+                        Role = "tool", Content = $"Step {stepNum}: {desc}",
+                        IsToolCall = true, ToolName = $"Step {stepNum}",
+                        ToolCallStatus = "running"
+                    });
+                    Bind();
+                    ScrollBottom();
+                    break;
+                case "step_done":
+                    var doneNum = evt.Data?.GetValueOrDefault("step_number")?.ToString() ?? "?";
+                    StatusText.Text = $"Step {doneNum} done";
+                    var lastStep = _messages.LastOrDefault(m => m.IsToolCall && m.ToolName == $"Step {doneNum}");
+                    if (lastStep != null)
+                    {
+                        lastStep.Content = "Completed";
+                        lastStep.ToolCallStatus = "done";
+                        lastStep.ToolSuccess = true;
+                    }
+                    Bind();
+                    ScrollBottom();
+                    break;
+                case "review_done":
+                    var passed = evt.Data?.GetValueOrDefault("passed");
+                    StatusText.Text = passed?.ToString() == "True" ? "Review: Passed" : "Review: Needs revision";
+                    break;
+            }
         });
     }
 

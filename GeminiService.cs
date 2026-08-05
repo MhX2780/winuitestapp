@@ -426,44 +426,261 @@ public class GeminiService : IDisposable
 }
 
 // Multi-Agent Orchestrator ported from UGA multi_agent.py
+// Pipeline: Classifier → Planner → Executor → Reviewer
 public class MultiAgentOrchestrator
 {
-    private readonly GeminiService _service;
+    private readonly HttpClient _http = new();
+    private const string BASE_URL = "https://generativelanguage.googleapis.com/v1beta/models/";
 
-    public MultiAgentOrchestrator(GeminiService service) => _service = service;
+    public event Action<MultiAgentEvent>? OnEvent;
 
-    public async IAsyncEnumerable<MultiAgentEvent> RunTurn(string userMessage)
+    private string GetApiKey() => ConfigManager.LoadSavedApiKey() ?? "";
+
+    /// <summary>
+    /// Runs the full multi-agent pipeline for a complex request.
+    /// Returns the final consolidated response text.
+    /// </summary>
+    public async Task<string> RunAsync(string userMessage, CancellationToken ct = default)
     {
-        if (!ConfigManager.MultiAgentEnabled) yield break;
+        if (!ConfigManager.MultiAgentEnabled)
+            return ""; // Not enabled — caller falls back to normal chat
 
-        var classifierModel = ConfigManager.MultiAgentRoles.GetValueOrDefault("classifier") ?? "gemini-2.5-flash-lite";
-        var classification = await Classify(userMessage, classifierModel);
-        yield return new() { Kind = "classified", Data = new() { ["complexity"] = classification } };
+        var roles = ConfigManager.MultiAgentRoles;
+        var classifierModel = roles.GetValueOrDefault("classifier") ?? "gemini-2.5-flash-lite";
+        var plannerModel = roles.GetValueOrDefault("planner") ?? "gemini-3.6-flash";
+        var executorModel = roles.GetValueOrDefault("executor") ?? "gemini-3.5-flash";
+        var reviewerModel = roles.GetValueOrDefault("reviewer") ?? "gemini-2.5-flash-lite";
 
-        if (classification == "simple") yield break;
+        // ── Step 1: Classification ──
+        Emit("classified", new() { { "model", classifierModel } });
+        var classification = await ClassifyAsync(userMessage, classifierModel, ct);
+        var complexity = classification.complexity;
+        var taskType = classification.taskType;
 
-        var plannerModel = ConfigManager.MultiAgentRoles.GetValueOrDefault("planner") ?? "gemini-3.6-flash";
-        var steps = await Plan(userMessage, plannerModel);
-        yield return new() { Kind = "plan_ready", Data = new() { ["steps"] = JsonConvert.SerializeObject(steps) } };
+        Emit("classified_result", new()
+        {
+            { "complexity", complexity },
+            { "task_type", taskType },
+            { "reasoning", classification.reasoning }
+        });
 
-        var executorModel = ConfigManager.MultiAgentRoles.GetValueOrDefault("executor") ?? "gemini-3.5-flash";
+        if (complexity == "simple")
+            return ""; // Let normal chat handle it
+
+        // ── Step 2: Planning ──
+        Emit("plan_start", new() { { "model", plannerModel } });
+        var steps = await PlanAsync(userMessage, plannerModel, complexity, taskType, ct);
+        Emit("plan_ready", new() { { "steps", JsonConvert.SerializeObject(steps) } });
+
+        // ── Step 3: Execution ──
+        var results = new List<string>();
         for (int i = 0; i < steps.Count; i++)
         {
-            yield return new() { Kind = "step_start", Data = new() { ["step_number"] = i + 1, ["total_steps"] = (object)steps.Count, ["description"] = (object)steps[i] } };
-            yield return new() { Kind = "step_done", Data = new() { ["step_number"] = i + 1 } };
+            ct.ThrowIfCancellationRequested();
+            var step = steps[i];
+            Emit("step_start", new()
+            {
+                { "step_number", i + 1 },
+                { "total_steps", steps.Count },
+                { "description", step.Description }
+            });
+
+            TaskbarProgress.SetStepProgress(i + 1, steps.Count);
+
+            // Use executor model with tools for each step
+            var stepHistory = new List<Dictionary<string, object>>
+            {
+                new() { { "role", "user" }, { "parts", new List<object> { new Dictionary<string, object> { { "text", $"Execute this step: {step.Description}\nContext: {userMessage}" } } } } }
+            };
+            var stepResult = await ExecuteStepAsync(stepHistory, executorModel, ct);
+            results.Add(stepResult);
+            step.Status = "done";
+            step.Result = stepResult;
+
+            Emit("step_done", new() { { "step_number", i + 1 }, { "result", stepResult } });
+        }
+
+        // ── Step 4: Review ──
+        Emit("review_start", new() { { "model", reviewerModel } });
+        var review = await ReviewAsync(userMessage, steps, reviewerModel, ct);
+        Emit("review_done", new() { { "passed", review.passed }, { "feedback", review.feedback } });
+
+        TaskbarProgress.Clear();
+
+        // Combine all step results
+        var finalText = string.Join("\n\n", results);
+        if (!review.passed && !string.IsNullOrEmpty(review.feedback))
+            finalText += $"\n\n**Review Feedback:** {review.feedback}";
+
+        return finalText;
+    }
+
+    // ── Classification ──
+    private async Task<(string complexity, string taskType, string reasoning)> ClassifyAsync(string message, string model, CancellationToken ct)
+    {
+        var prompt = $"""Classify this user request for a coding assistant.
+
+User request: "{message}"
+
+Respond in this exact JSON format only, nothing else:
+{{"complexity": "simple" or "moderate" or "complex", "task_type": "<type>", "reasoning": "<brief>"}}
+
+task_type can be: file_operation, search, git, execution, code_quality, multi_step, general, unknown
+complexity rules:
+- simple: single straightforward action (e.g. "read a file", "what is X")
+- moderate: 2-3 related steps (e.g. "create a Python script with error handling")
+- complex: 4+ steps, multi-file, or architectural changes""";
+
+        try
+        {
+            var body = new Dictionary<string, object>
+            {
+                { "contents", new List<object> { new Dictionary<string, object> { { "role", "user" }, { "parts", new List<object> { new Dictionary<string, object> { { "text", prompt } } } } } } },
+                { "generationConfig", new Dictionary<string, object> { { "temperature", 0.1 }, { "maxOutputTokens", 256 } } }
+            };
+            var resp = await PostAsync(body, model, ct);
+            var text = ExtractTextFromResponse(resp);
+            // Parse JSON from response
+            text = text.Trim();
+            var start = text.IndexOf('{');
+            var end = text.LastIndexOf('}');
+            if (start >= 0 && end > start)
+                text = text[start..(end + 1)];
+            var obj = JObject.Parse(text);
+            return (
+                obj["complexity"]?.ToString() ?? "simple",
+                obj["task_type"]?.ToString() ?? "general",
+                obj["reasoning"]?.ToString() ?? ""
+            );
+        }
+        catch
+        {
+            return ("simple", "general", "Classification failed, defaulting to simple");
         }
     }
 
-    private async Task<string> Classify(string userMessage, string model)
+    // ── Planning ──
+    private async Task<List<PlanStep>> PlanAsync(string message, string model, string complexity, string taskType, CancellationToken ct)
     {
-        var origModel = _service.CurrentModel;
-        _service.CurrentModel = model;
-        _service.CurrentModel = origModel;
-        return "simple";
+        var prompt = $"""You are a planning agent. Break down this request into clear, sequential steps.
+
+User request: "{message}"
+Classified as: {complexity} complexity, type: {taskType}
+
+Respond in this exact JSON array format only:
+[{{"description": "Step 1 description", "actions": ["action1", "action2"]}}, ...]
+
+Each step should be a concrete, executable action. Use tools where appropriate.
+Keep it to 2-5 steps for moderate, 3-8 for complex.""";
+
+        try
+        {
+            var body = new Dictionary<string, object>
+            {
+                { "contents", new List<object> { new Dictionary<string, object> { { "role", "user" }, { "parts", new List<object> { new Dictionary<string, object> { { "text", prompt } } } } } } },
+                { "generationConfig", new Dictionary<string, object> { { "temperature", 0.2 }, { "maxOutputTokens", 1024 } } }
+            };
+            var resp = await PostAsync(body, model, ct);
+            var text = ExtractTextFromResponse(resp);
+            text = text.Trim();
+            var start = text.IndexOf('[');
+            var end = text.LastIndexOf(']');
+            if (start >= 0 && end > start)
+                text = text[start..(end + 1)];
+            var arr = JArray.Parse(text);
+            var steps = new List<PlanStep>();
+            for (int i = 0; i < arr.Count; i++)
+            {
+                steps.Add(new PlanStep
+                {
+                    Number = i + 1,
+                    Description = arr[i]?["description"]?.ToString() ?? $"Step {i + 1}",
+                    Status = "pending",
+                    Actions = arr[i]?["actions"]?.ToObject<List<string>>() ?? new()
+                });
+            }
+            return steps;
+        }
+        catch
+        {
+            // Fallback: single step
+            return new() { new() { Number = 1, Description = message, Status = "pending" } };
+        }
     }
 
-    private Task<List<string>> Plan(string userMessage, string model)
+    // ── Step Execution (uses full tool-calling loop) ──
+    private async Task<string> ExecuteStepAsync(List<Dictionary<string, object>> history, string model, CancellationToken ct)
     {
-        return Task.FromResult(new List<string> { userMessage });
+        var service = new GeminiService();
+        return await service.SendStreamingAsync(history, history.First()?["parts"] is List<object> parts && parts.First() is Dictionary<string, object> p && p.ContainsKey("text") ? p["text"]?.ToString() ?? "" : "", ct);
+    }
+
+    // ── Review ──
+    private async Task<(bool passed, string feedback)> ReviewAsync(string originalRequest, List<PlanStep> steps, string model, CancellationToken ct)
+    {
+        var summary = string.Join("\n", steps.Select(s => $"- Step {s.Number}: {s.Description} → {(s.Status == "done" ? "OK" : "FAILED")}"));
+        var prompt = $"""Review the execution results for this request:
+
+Original: "{originalRequest}"
+
+Steps executed:
+{summary}
+
+Respond in this exact JSON format only:
+{{"passed": true/false, "feedback": "<feedback or empty if passed>"}}
+
+Check: Were all steps completed? Does the result fulfill the request?""";
+
+        try
+        {
+            var body = new Dictionary<string, object>
+            {
+                { "contents", new List<object> { new Dictionary<string, object> { { "role", "user" }, { "parts", new List<object> { new Dictionary<string, object> { { "text", prompt } } } } } } },
+                { "generationConfig", new Dictionary<string, object> { { "temperature", 0.1 }, { "maxOutputTokens", 512 } } }
+            };
+            var resp = await PostAsync(body, model, ct);
+            var text = ExtractTextFromResponse(resp);
+            text = text.Trim();
+            var start = text.IndexOf('{');
+            var end = text.LastIndexOf('}');
+            if (start >= 0 && end > start)
+                text = text[start..(end + 1)];
+            var obj = JObject.Parse(text);
+            return (
+                obj["passed"]?.Value<bool>() ?? true,
+                obj["feedback"]?.ToString() ?? ""
+            );
+        }
+        catch
+        {
+            return (true, ""); // Default: pass
+        }
+    }
+
+    // ── Helpers ──
+    private async Task<string> PostAsync(Dictionary<string, object> body, string model, CancellationToken ct)
+    {
+        var url = $"{BASE_URL}{Uri.EscapeDataString(model)}:generateContent?key={GetApiKey()}";
+        var json = JsonConvert.SerializeObject(body);
+        var content = new StringContent(json);
+        content.Headers.ContentType = new MediaTypeHeaderValue("application/json");
+        var resp = await _http.PostAsync(url, content, ct);
+        return await resp.Content.ReadAsStringAsync(ct);
+    }
+
+    private static string ExtractTextFromResponse(string json)
+    {
+        try
+        {
+            var obj = JObject.Parse(json);
+            return obj["candidates"]?[0]?["content"]?["parts"]?.FirstOrDefault()?["text"]?.ToString() ?? "";
+        }
+        catch { return ""; }
+    }
+
+    private void Emit(string kind, Dictionary<string, object> data)
+    {
+        CrashLogger.Log("INFO", $"MultiAgent: {kind}");
+        OnEvent?.Invoke(new() { Kind = kind, Data = data });
     }
 }

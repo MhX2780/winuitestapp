@@ -79,6 +79,26 @@
                 </StackPanel>
             </Border>
 
+            <!-- ═══ Appearance ═══ -->
+            <TextBlock Text="Appearance" FontSize="22" FontWeight="Bold" Margin="0,12,0,0"
+                       Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+            <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                    BorderThickness="1" CornerRadius="8" Padding="20">
+                <StackPanel Spacing="12">
+                    <TextBlock Text="Application Theme" FontWeight="SemiBold"
+                               Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+                    <ComboBox x:Name="ThemeCombo" Width="300" SelectedIndex="0" CornerRadius="6"
+                              SelectionChanged="ThemeCombo_SelectionChanged">
+                        <ComboBoxItem Content="System Default (Auto)" Tag="auto"/>
+                        <ComboBoxItem Content="Dark" Tag="dark"/>
+                        <ComboBoxItem Content="Light" Tag="light"/>
+                    </ComboBox>
+                    <TextBlock x:Name="ThemeStatus" FontSize="12"
+                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                </StackPanel>
+            </Border>
+
             <!-- ═══ Tools ═══ -->
             <TextBlock Text="Tools" FontSize="22" FontWeight="Bold" Margin="0,12,0,0"
                        Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>

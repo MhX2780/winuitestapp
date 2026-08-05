@@ -69,8 +69,13 @@ public static class TaskbarProgress
         {
             _taskbar = (ITaskbarList3)new TaskbarList();
             _taskbar.HrInit();
+            CrashLogger.Log("INFO", "TaskbarProgress initialized successfully");
         }
-        catch { _taskbar = null; }
+        catch (Exception ex) 
+        { 
+            _taskbar = null; 
+            CrashLogger.Log("WARN", $"TaskbarProgress init failed: {ex.Message}");
+        }
     }
 
     /// <summary>

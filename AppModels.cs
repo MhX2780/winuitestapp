@@ -112,6 +112,9 @@ public class AppSettings
     // Max history messages
     public int MaxHistoryMessages { get; set; } = 30;
     
+    // Theme: "auto", "dark", "light"
+    public string ThemeMode { get; set; } = "auto";
+
     // Provider API keys (Claude, OpenAI, Puter)
     public string ClaudeApiKey { get; set; } = "";
     public string OpenAIApiKey { get; set; } = "";

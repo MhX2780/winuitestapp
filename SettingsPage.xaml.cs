@@ -59,6 +59,9 @@ public sealed partial class SettingsPage : Page
             SetCombo(PlannerCombo, s.MultiAgentRoles?.GetValueOrDefault("planner") ?? "gemini-3.6-flash");
             SetCombo(ExecutorCombo, s.MultiAgentRoles?.GetValueOrDefault("executor") ?? "gemini-3.5-flash");
             SetCombo(ReviewerCombo, s.MultiAgentRoles?.GetValueOrDefault("reviewer") ?? "gemini-2.5-flash-lite");
+
+            // Theme
+            SetThemeCombo(s.ThemeMode);
         }
         catch (Exception ex)
         {
@@ -200,6 +203,11 @@ public sealed partial class SettingsPage : Page
         // Workspace
         s.WorkspacePath = WorkspaceBox.Text?.Trim() ?? "";
 
+        // Theme
+        var themeTag = ((ComboBoxItem)ThemeCombo.SelectedItem)?.Tag?.ToString() ?? "auto";
+        s.ThemeMode = themeTag;
+        ApplyThemeImmediate(themeTag);
+
         // Providers
         ConfigManager.SaveProviderApiKey("claude", ClaudeKeyBox.Password?.Trim() ?? "");
         ConfigManager.SaveProviderApiKey("openai", OpenAIKeyBox.Password?.Trim() ?? "");
@@ -311,6 +319,41 @@ public sealed partial class SettingsPage : Page
                 return;
             }
         }
+    }
+
+    // ─── Theme ───
+
+    private void SetThemeCombo(string mode)
+    {
+        for (int i = 0; i < ThemeCombo.Items.Count; i++)
+        {
+            if (((ComboBoxItem)ThemeCombo.Items[i]).Tag?.ToString() == mode)
+            {
+                ThemeCombo.SelectedIndex = i;
+                break;
+            }
+        }
+    }
+
+    private void ThemeCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (ThemeCombo.SelectedItem is not ComboBoxItem item) return;
+        var tag = item.Tag?.ToString() ?? "auto";
+        ThemeStatus.Text = tag switch
+        {
+            "auto" => "Follows Windows system theme setting.",
+            "dark" => "Always use dark theme.",
+            "light" => "Always use light theme.",
+            _ => ""
+        };
+        // Live preview
+        ApplyThemeImmediate(tag);
+    }
+
+    private void ApplyThemeImmediate(string mode)
+    {
+        if (App.MainWindow is MainWindow mw)
+            mw.ApplyTheme(mode);
     }
 
     // ─── Win32 SHBrowseForFolder fallback ───

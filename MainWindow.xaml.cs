@@ -7,27 +7,30 @@ namespace AdvaBrowser;
 
 public sealed partial class MainWindow : Window
 {
-    private bool _isDark = true;
+    private const int WINDOW_WIDTH = 1200;
+    private const int WINDOW_HEIGHT = 800;
 
     public MainWindow()
     {
         this.InitializeComponent();
 
         AppWindow.TitleBar.ExtendsContentIntoTitleBar = true;
-
-        // Caption button colors
-        AppWindow.TitleBar.ButtonBackgroundColor = Windows.UI.Color.FromArgb(0, 0, 0, 0);
-        AppWindow.TitleBar.ButtonForegroundColor = Windows.UI.Color.FromArgb(255, 255, 255, 255);
-        AppWindow.TitleBar.ButtonInactiveBackgroundColor = Windows.UI.Color.FromArgb(0, 0, 0, 0);
-        AppWindow.TitleBar.ButtonInactiveForegroundColor = Windows.UI.Color.FromArgb(255, 255, 255, 255);
-        AppWindow.TitleBar.ButtonHoverBackgroundColor = Windows.UI.Color.FromArgb(40, 255, 255, 255);
-        AppWindow.TitleBar.ButtonHoverForegroundColor = Windows.UI.Color.FromArgb(255, 255, 255, 255);
-        AppWindow.TitleBar.ButtonPressedBackgroundColor = Windows.UI.Color.FromArgb(80, 255, 255, 255);
-        AppWindow.TitleBar.ButtonPressedForegroundColor = Windows.UI.Color.FromArgb(255, 255, 255, 255);
-        AppWindow.TitleBar.ButtonInactiveForegroundColor = Windows.UI.Color.FromArgb(128, 255, 255, 255);
-
-        this.AppWindow.MoveAndResize(new Windows.Graphics.RectInt32(0, 0, 1200, 800));
         this.AppWindow.Title = "UGA";
+
+        // Start maximized
+        this.AppWindow.PreferredPresentation = AppWindowPresentationKind.Maximized;
+
+        // Position centered on screen (fallback for non-maximized)
+        var displayArea = DisplayArea.GetFromWindowId(AppWindow.Id, DisplayAreaFallback.Primary);
+        if (displayArea != null)
+        {
+            var centerX = (displayArea.WorkArea.Width - WINDOW_WIDTH) / 2;
+            var centerY = (displayArea.WorkArea.Height - WINDOW_HEIGHT) / 2;
+            this.AppWindow.MoveAndResize(new Windows.Graphics.RectInt32(
+                displayArea.WorkArea.X + Math.Max(0, centerX),
+                displayArea.WorkArea.Y + Math.Max(0, centerY),
+                WINDOW_WIDTH, WINDOW_HEIGHT));
+        }
 
         var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
         TaskbarProgress.Initialize(hwnd);
@@ -47,6 +50,82 @@ public sealed partial class MainWindow : Window
                 }
             }
         };
+
+        // Apply theme based on saved setting
+        ApplyTheme(ConfigManager.Settings.ThemeMode);
+
+        // Listen for system theme changes when in Auto mode
+        UISettings uiSettings = new();
+        uiSettings.ColorValuesChanged += (s, e) =>
+        {
+            if (ConfigManager.Settings.ThemeMode == "auto")
+            {
+                DispatcherQueue.TryEnqueue(() => ApplyTheme("auto"));
+            }
+        };
+    }
+
+    /// <summary>
+    /// Applies theme: "auto" = follow system, "dark", "light".
+    /// </summary>
+    public void ApplyTheme(string mode)
+    {
+        bool isDark;
+        if (mode == "auto")
+        {
+            // Detect Windows system theme via registry or UISettings
+            isDark = IsSystemDark();
+        }
+        else
+        {
+            isDark = mode == "dark";
+        }
+
+        RootNav.RequestedTheme = isDark ? ElementTheme.Dark : ElementTheme.Light;
+        UpdateCaptionColors(isDark);
+    }
+
+    private static bool IsSystemDark()
+    {
+        try
+        {
+            // Read Windows personalization theme from registry
+            var key = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize");
+            if (key != null)
+            {
+                var val = key.GetValue("AppsUseLightTheme");
+                if (val is int v)
+                    return v == 0; // 0 = dark, 1 = light
+            }
+        }
+        catch { }
+        return true; // Default dark
+    }
+
+    private void UpdateCaptionColors(bool dark)
+    {
+        if (dark)
+        {
+            AppWindow.TitleBar.ButtonBackgroundColor = Windows.UI.Color.FromArgb(0, 0, 0, 0);
+            AppWindow.TitleBar.ButtonForegroundColor = Windows.UI.Color.FromArgb(255, 255, 255, 255);
+            AppWindow.TitleBar.ButtonInactiveBackgroundColor = Windows.UI.Color.FromArgb(0, 0, 0, 0);
+            AppWindow.TitleBar.ButtonInactiveForegroundColor = Windows.UI.Color.FromArgb(128, 255, 255, 255);
+            AppWindow.TitleBar.ButtonHoverBackgroundColor = Windows.UI.Color.FromArgb(40, 255, 255, 255);
+            AppWindow.TitleBar.ButtonHoverForegroundColor = Windows.UI.Color.FromArgb(255, 255, 255, 255);
+            AppWindow.TitleBar.ButtonPressedBackgroundColor = Windows.UI.Color.FromArgb(80, 255, 255, 255);
+            AppWindow.TitleBar.ButtonPressedForegroundColor = Windows.UI.Color.FromArgb(255, 255, 255, 255);
+        }
+        else
+        {
+            AppWindow.TitleBar.ButtonBackgroundColor = Windows.UI.Color.FromArgb(0, 0, 0, 0);
+            AppWindow.TitleBar.ButtonForegroundColor = Windows.UI.Color.FromArgb(255, 0, 0, 0);
+            AppWindow.TitleBar.ButtonInactiveBackgroundColor = Windows.UI.Color.FromArgb(0, 0, 0, 0);
+            AppWindow.TitleBar.ButtonInactiveForegroundColor = Windows.UI.Color.FromArgb(128, 0, 0, 0);
+            AppWindow.TitleBar.ButtonHoverBackgroundColor = Windows.UI.Color.FromArgb(40, 0, 0, 0);
+            AppWindow.TitleBar.ButtonHoverForegroundColor = Windows.UI.Color.FromArgb(255, 0, 0, 0);
+            AppWindow.TitleBar.ButtonPressedBackgroundColor = Windows.UI.Color.FromArgb(80, 0, 0, 0);
+            AppWindow.TitleBar.ButtonPressedForegroundColor = Windows.UI.Color.FromArgb(255, 0, 0, 0);
+        }
     }
 
     /// <summary>
@@ -78,7 +157,7 @@ public sealed partial class MainWindow : Window
     {
         if (args.SelectedItemContainer is NavigationViewItem item && item.Tag is string tag)
         {
-            if (tag is "undo" or "clear" or "newchat" or "theme" or "history")
+            if (tag is "undo" or "clear" or "newchat" or "history")
             {
                 _ = HandleNavActionAsync(tag);
                 RootNav.SelectedItem = RootNav.MenuItems[0];
@@ -91,12 +170,6 @@ public sealed partial class MainWindow : Window
     private async System.Threading.Tasks.Task HandleNavActionAsync(string action)
     {
         RootNav.IsPaneOpen = false;
-
-        if (action == "theme")
-        {
-            ToggleTheme();
-            return;
-        }
 
         if (action == "history")
         {
@@ -133,47 +206,6 @@ public sealed partial class MainWindow : Window
                 case "clear": page.ExecuteClearChat(); break;
                 case "newchat": page.ExecuteNewChat(); break;
             }
-        }
-    }
-
-    private void ToggleTheme()
-    {
-        _isDark = !_isDark;
-        if (_isDark)
-        {
-            RootNav.RequestedTheme = ElementTheme.Dark;
-            UpdateCaptionColors(dark: true);
-        }
-        else
-        {
-            RootNav.RequestedTheme = ElementTheme.Light;
-            UpdateCaptionColors(dark: false);
-        }
-    }
-
-    private void UpdateCaptionColors(bool dark)
-    {
-        if (dark)
-        {
-            AppWindow.TitleBar.ButtonBackgroundColor = Windows.UI.Color.FromArgb(0, 0, 0, 0);
-            AppWindow.TitleBar.ButtonForegroundColor = Windows.UI.Color.FromArgb(255, 255, 255, 255);
-            AppWindow.TitleBar.ButtonInactiveBackgroundColor = Windows.UI.Color.FromArgb(0, 0, 0, 0);
-            AppWindow.TitleBar.ButtonInactiveForegroundColor = Windows.UI.Color.FromArgb(128, 255, 255, 255);
-            AppWindow.TitleBar.ButtonHoverBackgroundColor = Windows.UI.Color.FromArgb(40, 255, 255, 255);
-            AppWindow.TitleBar.ButtonHoverForegroundColor = Windows.UI.Color.FromArgb(255, 255, 255, 255);
-            AppWindow.TitleBar.ButtonPressedBackgroundColor = Windows.UI.Color.FromArgb(80, 255, 255, 255);
-            AppWindow.TitleBar.ButtonPressedForegroundColor = Windows.UI.Color.FromArgb(255, 255, 255, 255);
-        }
-        else
-        {
-            AppWindow.TitleBar.ButtonBackgroundColor = Windows.UI.Color.FromArgb(0, 0, 0, 0);
-            AppWindow.TitleBar.ButtonForegroundColor = Windows.UI.Color.FromArgb(255, 0, 0, 0);
-            AppWindow.TitleBar.ButtonInactiveBackgroundColor = Windows.UI.Color.FromArgb(0, 0, 0, 0);
-            AppWindow.TitleBar.ButtonInactiveForegroundColor = Windows.UI.Color.FromArgb(128, 0, 0, 0);
-            AppWindow.TitleBar.ButtonHoverBackgroundColor = Windows.UI.Color.FromArgb(40, 0, 0, 0);
-            AppWindow.TitleBar.ButtonHoverForegroundColor = Windows.UI.Color.FromArgb(255, 0, 0, 0);
-            AppWindow.TitleBar.ButtonPressedBackgroundColor = Windows.UI.Color.FromArgb(80, 0, 0, 0);
-            AppWindow.TitleBar.ButtonPressedForegroundColor = Windows.UI.Color.FromArgb(255, 0, 0, 0);
         }
     }
 

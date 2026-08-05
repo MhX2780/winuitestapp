@@ -74,34 +74,40 @@
                         <Border Background="{ThemeResource CardBackgroundFillColorSecondaryBrush}"
                                 BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
                                 BorderThickness="1"
-                                CornerRadius="8" Padding="12,8"
+                                CornerRadius="8" Padding="12,10"
                                 HorizontalAlignment="Left" MaxWidth="520" Margin="0,0,60,0">
                             <Border.Visibility>
                                 <Binding Path="IsToolCall" Converter="{StaticResource BoolToVisibilityConverter}"/>
                             </Border.Visibility>
-                            <StackPanel Orientation="Horizontal" Spacing="10">
-                                <ProgressRing Width="16" Height="16"
-                                              Foreground="{ThemeResource AccentFillColorDefaultBrush}">
-                                    <ProgressRing.Visibility>
-                                        <Binding Path="IsToolRunning" Converter="{StaticResource BoolToVisibilityConverter}"/>
-                                    </ProgressRing.Visibility>
-                                </ProgressRing>
-                                <FontIcon Glyph="&#xE73E;" FontSize="16"
-                                          Foreground="{ThemeResource SystemFillColorSuccessBrush}">
-                                    <FontIcon.Visibility>
-                                        <Binding Path="IsToolDone" Converter="{StaticResource BoolToVisibilityConverter}"/>
-                                    </FontIcon.Visibility>
-                                </FontIcon>
-                                <FontIcon Glyph="&#xE711;" FontSize="16"
-                                          Foreground="{ThemeResource SystemFillColorCriticalBrush}">
-                                    <FontIcon.Visibility>
-                                        <Binding Path="IsToolFailed" Converter="{StaticResource BoolToVisibilityConverter}"/>
-                                    </FontIcon.Visibility>
-                                </FontIcon>
-                                <TextBlock Text="{x:Bind ToolName}" FontSize="13" FontWeight="SemiBold"
-                                           Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+                            <StackPanel Spacing="4">
+                                <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                                    <ProgressRing Width="16" Height="16"
+                                                  Foreground="{ThemeResource AccentFillColorDefaultBrush}">
+                                        <ProgressRing.Visibility>
+                                            <Binding Path="IsToolRunning" Converter="{StaticResource BoolToVisibilityConverter}"/>
+                                        </ProgressRing.Visibility>
+                                    </ProgressRing>
+                                    <FontIcon Glyph="&#xE73E;" FontSize="16"
+                                              Foreground="{ThemeResource SystemFillColorSuccessBrush}"
+                                              VerticalAlignment="Center">
+                                        <FontIcon.Visibility>
+                                            <Binding Path="IsToolDone" Converter="{StaticResource BoolToVisibilityConverter}"/>
+                                        </FontIcon.Visibility>
+                                    </FontIcon>
+                                    <FontIcon Glyph="&#xE711;" FontSize="16"
+                                              Foreground="{ThemeResource SystemFillColorCriticalBrush}"
+                                              VerticalAlignment="Center">
+                                        <FontIcon.Visibility>
+                                            <Binding Path="IsToolFailed" Converter="{StaticResource BoolToVisibilityConverter}"/>
+                                        </FontIcon.Visibility>
+                                    </FontIcon>
+                                    <TextBlock Text="{x:Bind ToolName}" FontSize="13" FontWeight="SemiBold"
+                                               Foreground="{ThemeResource TextFillColorPrimaryBrush}"
+                                               VerticalAlignment="Center"/>
+                                </StackPanel>
                                 <TextBlock Text="{x:Bind Content}" FontSize="12" Opacity="0.7"
-                                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                           TextWrapping="Wrap" Margin="24,0,0,0"/>
                             </StackPanel>
                         </Border>
 
@@ -167,7 +173,7 @@
                                       HorizontalAlignment="Center" VerticalAlignment="Center"/>
                     </Grid>
                 </Grid>
-                <TextBlock Grid.Row="1" Text="Ctrl+Enter to send | Enter for new line"
+                <TextBlock Grid.Row="1" Text="Enter to send | Shift+Enter for new line"
                            FontSize="11"
                            Foreground="{ThemeResource TextFillColorTertiaryBrush}" Opacity="0.7"/>
             </Grid>

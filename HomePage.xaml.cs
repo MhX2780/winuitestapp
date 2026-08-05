@@ -58,13 +58,15 @@ public sealed partial class HomePage : Page
     {
         if (e.Key == Windows.System.VirtualKey.Enter)
         {
-            var ctrlState = Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(Windows.System.VirtualKey.Control);
-            bool ctrlHeld = ctrlState.HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down);
-            if (ctrlHeld)
+            var ctrlState = Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(Windows.System.VirtualKey.Shift);
+            bool shiftHeld = ctrlState.HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down);
+            if (!shiftHeld)
             {
+                // Enter alone → send, Shift+Enter → new line
                 e.Handled = true;
                 _ = SendMessageAsync();
             }
+            // else: let Shift+Enter insert new line (default behavior)
         }
     }
 
@@ -165,39 +167,45 @@ public sealed partial class HomePage : Page
         {
             Title = "Chat History",
             Content = panel,
-            PrimaryButtonText = sessions.Count > 0 ? "Load Selected" : "Close",
-            CloseButtonText = "Cancel",
-            DefaultButton = sessions.Count > 0 ? ContentDialogButton.Primary : ContentDialogButton.Close,
+            CloseButtonText = "Close",
             XamlRoot = XamlRoot,
         };
 
-        var result = await dlg.ShowAsync();
-        if (result == ContentDialogResult.Primary && sessions.Count > 0)
+        // Double-click on a session to load it and close the dialog
+        if (sessions.Count > 0)
         {
-            // Find selected item
             var selectedListView = panel.Children.OfType<ListView>().FirstOrDefault();
-            if (selectedListView?.SelectedItem is TextBlock tb && tb.Tag is string selectedPath)
+            if (selectedListView != null)
             {
-                try
+                selectedListView.DoubleTapped += (s, e) =>
                 {
-                    var json = File.ReadAllText(selectedPath);
-                    var msgs = JsonConvert.DeserializeObject<List<ChatMessage>>(json);
-                    if (msgs != null)
+                    if (selectedListView.SelectedItem is TextBlock tb && tb.Tag is string selectedPath)
                     {
-                        _messages.Clear();
-                        _messages.AddRange(msgs);
-                        SaveChatHistory();
-                        Bind();
-                        ScrollBottom();
-                        CrashLogger.Log("INFO", $"Loaded chat session: {selectedPath}");
+                        try
+                        {
+                            var json = File.ReadAllText(selectedPath);
+                            var msgs = JsonConvert.DeserializeObject<List<ChatMessage>>(json);
+                            if (msgs != null)
+                            {
+                                _messages.Clear();
+                                _messages.AddRange(msgs);
+                                SaveChatHistory();
+                                Bind();
+                                ScrollBottom();
+                                CrashLogger.Log("INFO", $"Loaded chat session: {selectedPath}");
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            CrashLogger.Log("ERROR", $"Failed to load session: {ex.Message}");
+                        }
                     }
-                }
-                catch (Exception ex)
-                {
-                    CrashLogger.Log("ERROR", $"Failed to load session: {ex.Message}");
-                }
+                    dlg.Hide();
+                };
             }
         }
+
+        await dlg.ShowAsync();
     }
 
     // Chat history persistence
@@ -358,6 +366,7 @@ public sealed partial class HomePage : Page
                 }).ToList();
 
             // ── Multi-Agent path ──
+            bool usedMa = false;
             if (ConfigManager.MultiAgentEnabled)
             {
                 _orchestrator ??= new MultiAgentOrchestrator();
@@ -369,25 +378,31 @@ public sealed partial class HomePage : Page
 
                 if (!string.IsNullOrEmpty(maResult))
                 {
-                    // Multi-agent produced a result — display it
+                    usedMa = true;
                     _streamingMsg = new()
                     {
                         Role = "model", Content = maResult,
                         ModelName = "Multi-Agent"
                     };
                     _messages.Add(_streamingMsg);
+                    MemoryManager.LogMessage("model", maResult, "Multi-Agent");
+                    _streamingMsg = null;
                     Bind();
                     ScrollBottom();
                 }
-                else
-                {
-                    // Simple task — fall back to normal chat
-                    await _service.SendStreamingAsync(history, text, _cts.Token);
-                }
+            }
+
+            if (!usedMa)
+            {
+                await _service.SendStreamingAsync(history, text, _cts.Token);
             }
             else
             {
-                await _service.SendStreamingAsync(history, text, _cts.Token);
+                // Multi-agent cleanup: hide spinner, clear taskbar, save
+                await ShowSendButton();
+                TaskbarProgress.Clear();
+                StatusText.Text = "Ready";
+                SaveChatHistory();
             }
         }
         catch (OperationCanceledException) { }

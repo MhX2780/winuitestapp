@@ -127,12 +127,19 @@ public sealed partial class HomePage : Page
         var text = InputTextBox.Text?.Trim();
         if (string.IsNullOrEmpty(text)) return;
 
+        CrashLogger.Log("INFO", $"SendMessageAsync: textLen={text.Length}");
+
         // Check API key — show dialog if missing
         if (!ConfigManager.HasApiKey)
         {
+            CrashLogger.Log("INFO", "No API key, showing dialog");
             var keyEntered = await ShowApiKeyDialog();
             if (!keyEntered) return;
-            // Key is now saved, proceed with send
+            CrashLogger.Log("INFO", "API key entered via dialog");
+        }
+        else
+        {
+            CrashLogger.Log("INFO", "API key found in config");
         }
 
         // Clear input and show user message in chat
@@ -150,6 +157,7 @@ public sealed partial class HomePage : Page
         TaskbarProgress.SetIndeterminate();
 
         _service ??= new GeminiService();
+        CrashLogger.Log("INFO", $"Service ready, model={_service.CurrentModel}");
 
         // Detach first to prevent handler accumulation
         _service.OnTokenReceived -= OnToken;
@@ -184,7 +192,8 @@ public sealed partial class HomePage : Page
         catch (OperationCanceledException) { }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[UGA SendError] {ex.Message}\n{ex.StackTrace}");
+            CrashLogger.Log("ERROR", $"SendMessageAsync exception: {ex.GetType().Name}: {ex.Message}\n{ex.StackTrace}");
+            CrashLogger.WriteCrash($"SendMessageAsync: {ex.GetType().Name}: {ex.Message}\n{ex.StackTrace}");
             OnErr($"Error: {ex.Message}");
         }
     }

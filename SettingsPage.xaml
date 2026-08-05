@@ -196,9 +196,14 @@
                 <Button x:Name="SaveAllButton" Content="Save All Settings" Click="SaveAll_Click"
                         Style="{ThemeResource AccentButtonStyle}" MinWidth="160" CornerRadius="6"/>
                 <Button x:Name="ResetDefaultsButton" Content="Reset to Defaults" Click="ResetDefaults_Click" CornerRadius="6"/>
+                <Button x:Name="ShowLogsButton" Content="Show Logs" Click="ShowLogs_Click" CornerRadius="6"
+                        ToolTipService.ToolTip="Open the log file location"/>
             </StackPanel>
             <TextBlock x:Name="SaveStatus" FontSize="13"
                        Foreground="{ThemeResource SystemFillColorSuccessBrush}"/>
+            <TextBlock x:Name="LogPathText" FontSize="11" Margin="0,4,0,0"
+                       Foreground="{ThemeResource TextFillColorTertiaryBrush}"
+                       TextWrapping="Wrap"/>
         </StackPanel>
     </ScrollViewer>
 </Page>

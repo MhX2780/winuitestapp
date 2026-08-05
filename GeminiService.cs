@@ -68,25 +68,27 @@ public class GeminiService : IDisposable
         string finalText = "";
         try
         {
+            CrashLogger.Log("INFO", $"SendStreamingAsync: model={CurrentModel}, history={history.Count}, msgLen={userMessage.Length}");
+
             var sysPrompt = ConfigManager.Settings.SystemPromptOverride;
             if (string.IsNullOrEmpty(sysPrompt)) sysPrompt = BuildSystemPrompt();
 
-            System.Diagnostics.Debug.WriteLine($"[Gemini] Sending to {CurrentModel}, history count={history.Count}, msg length={userMessage.Length}");
-
             // Add user message to history
             history.Add(MakeUserContent(userMessage));
+            CrashLogger.Log("INFO", $"User content added to history, total entries={history.Count}");
 
             // Non-streaming call to check for tool calls
             var body = BuildRequestBody(history, sysPrompt);
+            CrashLogger.Log("INFO", $"Request body built, keys={string.Join(",", body.Keys)}");
 
             var respJson = await PostGenerate(body, ct);
-            System.Diagnostics.Debug.WriteLine($"[Gemini] Response length={respJson?.Length ?? 0}");
+            CrashLogger.Log("INFO", $"Response received, length={respJson?.Length ?? 0}");
 
             JObject respObj;
             try { respObj = JObject.Parse(respJson); }
             catch (Exception parseEx)
             {
-                System.Diagnostics.Debug.WriteLine($"[Gemini] Failed to parse response: {parseEx.Message}");
+                CrashLogger.Log("ERROR", $"Failed to parse response: {parseEx.Message}");
                 OnError?.Invoke($"Failed to parse API response: {parseEx.Message}");
                 return "";
             }
@@ -96,11 +98,13 @@ public class GeminiService : IDisposable
             // Check if API returned an error block instead of content
             if (parts.Count == 0)
             {
-                System.Diagnostics.Debug.WriteLine($"[Gemini] Empty parts. Full response: {respJson}");
-                // Maybe the response has error details
+                CrashLogger.Log("WARN", $"Empty parts in response. Response: {respJson?.Substring(0, Math.Min(500, respJson?.Length ?? 0))}");
                 var errMsg = respObj["error"]?["message"]?.ToString();
                 if (!string.IsNullOrEmpty(errMsg))
+                {
+                    CrashLogger.Log("ERROR", $"API error: {errMsg}");
                     OnError?.Invoke($"API Error: {errMsg}");
+                }
                 return "";
             }
 
@@ -131,7 +135,8 @@ public class GeminiService : IDisposable
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[Gemini] Exception: {ex.Message}\n{ex.StackTrace}");
+            CrashLogger.Log("ERROR", $"SendStreamingAsync exception: {ex.GetType().Name}: {ex.Message}\n{ex.StackTrace}");
+            CrashLogger.WriteCrash($"SendStreamingAsync: {ex.GetType().Name}: {ex.Message}\n{ex.StackTrace}");
             OnError?.Invoke($"Error: {ex.Message}");
         }
         finally
@@ -255,15 +260,16 @@ public class GeminiService : IDisposable
         string json;
         try
         {
+            CrashLogger.Log("INFO", $"Serializing request body...");
             json = JsonConvert.SerializeObject(body);
+            CrashLogger.Log("INFO", $"Serialization OK, JSON length={json.Length}");
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[Gemini] Serialization failed: {ex.Message}");
+            CrashLogger.Log("ERROR", $"Serialization FAILED: {ex.GetType().Name}: {ex.Message}\n{ex.StackTrace}");
+            CrashLogger.WriteCrash($"Serialization crash: {ex.GetType().Name}: {ex.Message}\n{ex.StackTrace}\nBody type: {body.GetType().Name}");
             throw new Exception($"Failed to serialize request body: {ex.Message}");
         }
-
-        System.Diagnostics.Debug.WriteLine($"[Gemini] POST to {CurrentModel}, body length={json.Length}");
 
         var content = new StringContent(json);
         content.Headers.ContentType = new MediaTypeHeaderValue("application/json");
@@ -272,7 +278,7 @@ public class GeminiService : IDisposable
         if (!resp.IsSuccessStatusCode)
         {
             var err = await resp.Content.ReadAsStringAsync(ct);
-            System.Diagnostics.Debug.WriteLine($"[Gemini] API error {resp.StatusCode}: {err}");
+            CrashLogger.Log("ERROR", $"API returned {resp.StatusCode}: {err?.Substring(0, Math.Min(500, err?.Length ?? 0))}");
             throw new Exception($"API {resp.StatusCode}: {err}");
         }
         return await resp.Content.ReadAsStringAsync(ct);
@@ -352,16 +358,23 @@ public class GeminiService : IDisposable
         }
         return value.ToString();
     }
-    private static Dictionary<string, object> MakeUserContent(string text) => new()
+    private static Dictionary<string, object> MakeUserContent(string text)
     {
-        { "role", "user" },
-        { "parts", new List<object> { new Dictionary<string, object> { { "text", (object?)text ?? "" } } } }
-    };
-    private static Dictionary<string, object> MakeModelContent(string text) => new()
+        CrashLogger.Log("INFO", $"MakeUserContent: textLen={text?.Length ?? 0}");
+        return new()
+        {
+            { "role", "user" },
+            { "parts", new List<object> { new Dictionary<string, object> { { "text", (object?)text ?? "" } } } }
+        };
+    }
+    private static Dictionary<string, object> MakeModelContent(string text)
     {
-        { "role", "model" },
-        { "parts", new List<object> { new Dictionary<string, object> { { "text", (object?)text ?? "" } } } }
-    };
+        return new()
+        {
+            { "role", "model" },
+            { "parts", new List<object> { new Dictionary<string, object> { { "text", (object?)text ?? "" } } } }
+        };
+    }
 
     public void Dispose() => _http.Dispose();
 }

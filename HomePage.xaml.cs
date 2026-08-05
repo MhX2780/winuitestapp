@@ -1,3 +1,4 @@
+using Microsoft.UI.Input;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
@@ -49,9 +50,9 @@ public sealed partial class HomePage : Page
         MemoryManager.LogMessage("system", "New chat started");
     }
 
-    private void Undo_Click(object sender, RoutedEventArgs e)
+    private async void Undo_Click(object sender, RoutedEventArgs e)
     {
-        var (result, success) = ToolExecutor.ExecuteAsync("undo_last_change", "{}").GetAwaiter().GetResult();
+        var (result, success) = await ToolExecutor.ExecuteAsync("undo_last_change", "{}");
         _messages.Add(new() { Role = "system", Content = result });
         Bind();
     }
@@ -107,11 +108,20 @@ public sealed partial class HomePage : Page
         TaskbarProgress.SetIndeterminate();
 
         _service ??= new GeminiService();
-        _service.OnTokenReceived = OnToken;
-        _service.OnToolCallStarted = OnToolStart;
-        _service.OnToolCallCompleted = OnToolDone;
-        _service.OnError = OnErr;
-        _service.OnComplete = OnDone;
+
+        // Detach first to prevent handler accumulation on repeated sends
+        _service.OnTokenReceived -= OnToken;
+        _service.OnToolCallStarted -= OnToolStart;
+        _service.OnToolCallCompleted -= OnToolDone;
+        _service.OnError -= OnErr;
+        _service.OnComplete -= OnDone;
+
+        // Attach event handlers
+        _service.OnTokenReceived += OnToken;
+        _service.OnToolCallStarted += OnToolStart;
+        _service.OnToolCallCompleted += OnToolDone;
+        _service.OnError += OnErr;
+        _service.OnComplete += OnDone;
 
         _cts = new();
         try

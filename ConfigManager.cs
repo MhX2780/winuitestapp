@@ -25,7 +25,7 @@ public static class ConfigManager
     public static readonly int ExecutionLogContextEntries = 15;
 
     // Settings
-    public static AppSettings Settings { get; private set; } = new();
+    public static AppSettings Settings { get; set; } = new();
 
     // Computed from settings
     public static bool HasApiKey => !string.IsNullOrWhiteSpace(LoadSavedApiKey());

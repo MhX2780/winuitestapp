@@ -1,5 +1,4 @@
 using Newtonsoft.Json;
-using System.IO.Compression;
 
 namespace AdvaBrowser;
 

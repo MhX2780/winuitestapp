@@ -94,8 +94,9 @@ public class GeminiService : IDisposable
                 OnTokenReceived?.Invoke(text);
             }
 
-            MemoryManager.LogMessage("model", ExtractText(parts), CurrentModel);
-            history.Add(MakeModelContent(ExtractText(parts)));
+            // Log final response (memory logging handled by OnDone in HomePage)
+            var finalText = ExtractText(parts);
+            history.Add(MakeModelContent(finalText));
         }
         catch (OperationCanceledException) { }
         catch (Exception ex) { OnError?.Invoke($"Error: {ex.Message}"); }
@@ -117,7 +118,7 @@ public class GeminiService : IDisposable
             foreach (var fc in GetFunctionCalls(parts))
             {
                 var fnName = fc["name"]?.ToString() ?? "";
-                var fnArgs = fc["args"]?.ToString( "{}" ) ?? "{}";
+                var fnArgs = fc["args"]?.ToString() ?? "{}";
                 OnToolCallStarted?.Invoke(fnName);
 
                 var (result, success) = await ToolExecutor.ExecuteAsync(fnName, fnArgs, ct);

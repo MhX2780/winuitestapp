@@ -5,13 +5,12 @@
     xmlns:local="using:AdvaBrowser">
 
     <Page.Resources>
-        <!-- Code block style -->
+        <!-- Code block style (for future use) -->
         <Style x:Key="CodeBlockStyle" TargetType="Border">
             <Setter Property="Background" Value="{ThemeResource CardBackgroundFillColorSecondaryBrush}"/>
             <Setter Property="BorderBrush" Value="{ThemeResource DividerStrokeColorDefaultBrush}"/>
             <Setter Property="BorderThickness" Value="1"/>
             <Setter Property="CornerRadius" Value="8"/>
-            <Setter Property="Padding" Value="12"/>
         </Style>
     </Page.Resources>
 
@@ -64,7 +63,7 @@
             </ListView.ItemContainerStyle>
             <ListView.ItemsPanel>
                 <ItemsPanelTemplate>
-                    <ItemsStackPanel Spacing="6"/>
+                    <ItemsStackPanel/>
                 </ItemsPanelTemplate>
             </ListView.ItemsPanel>
             <ListView.ItemTemplate>

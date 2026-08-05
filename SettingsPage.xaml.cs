@@ -84,8 +84,7 @@ public sealed partial class SettingsPage : Page
         };
         picker.FileTypeFilter.Add("*");
         var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(App.MainWindow);
-        var interop = picker.As<IInitializeWithWindow>();
-        interop?.Initialize(hwnd);
+        ((IInitializeWithWindow)picker).Initialize(hwnd);
         var folder = await picker.PickSingleFolderAsync();
         if (folder != null)
         {

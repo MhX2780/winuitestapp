@@ -130,7 +130,9 @@ public class GeminiService : IDisposable
 
             try
             {
-                respJson = await PostGenerate(body, ct, out statusCode);
+                var postResult = await PostGenerate(body, ct);
+                respJson = postResult.json;
+                statusCode = postResult.statusCode;
                 CrashLogger.Log("INFO", $"Response received, length={respJson?.Length ?? 0}, status={statusCode}");
             }
             catch (HttpRequestException httpEx)
@@ -290,7 +292,9 @@ public class GeminiService : IDisposable
             int status;
             try
             {
-                respJson = await PostGenerate(body, ct, out status);
+                var postResult2 = await PostGenerate(body, ct);
+                respJson = postResult2.json;
+                status = postResult2.statusCode;
             }
             catch (Exception ex)
             {
@@ -308,9 +312,9 @@ public class GeminiService : IDisposable
         return finalText;
     }
 
-    private async Task<string> PostGenerate(object body, CancellationToken ct, out int statusCode)
+    private async Task<(string json, int statusCode)> PostGenerate(object body, CancellationToken ct)
     {
-        statusCode = 0;
+        int statusCode = 0;
         var url = $"{BASE_URL}{Uri.EscapeDataString(CurrentModel)}:generateContent?key={ApiKey}";
         string json;
         try
@@ -333,9 +337,9 @@ public class GeminiService : IDisposable
         {
             var err = await resp.Content.ReadAsStringAsync(ct);
             CrashLogger.Log("ERROR", $"API returned {resp.StatusCode}: {err?.Substring(0, Math.Min(500, err?.Length ?? 0))}");
-            throw new HttpRequestException($"API {resp.StatusCode}");
+            return (err, (int)resp.StatusCode);
         }
-        return await resp.Content.ReadAsStringAsync(ct);
+        return (await resp.Content.ReadAsStringAsync(ct), (int)resp.StatusCode);
     }
 
     private Dictionary<string, object> BuildRequestBody(List<Dictionary<string, object>> history, string sysPrompt)

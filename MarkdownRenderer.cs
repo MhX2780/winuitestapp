@@ -157,7 +157,7 @@ public static class MarkdownRenderer
         {
             Height = 1,
             Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(
-                Microsoft.UI.Color.FromArgb(255, 80, 80, 80)),
+                Windows.UI.Color.FromArgb(255, 80, 80, 80)),
             HorizontalAlignment = Microsoft.UI.Xaml.HorizontalAlignment.Stretch,
             Margin = new Microsoft.UI.Xaml.Thickness(0, 8, 0, 8),
         };
@@ -179,9 +179,9 @@ public static class MarkdownRenderer
         var card = new Microsoft.UI.Xaml.Controls.Border
         {
             Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(
-                Microsoft.UI.Color.FromArgb(255, 30, 30, 30)),
+                Windows.UI.Color.FromArgb(255, 30, 30, 30)),
             BorderBrush = new Microsoft.UI.Xaml.Media.SolidColorBrush(
-                Microsoft.UI.Color.FromArgb(255, 60, 60, 60)),
+                Windows.UI.Color.FromArgb(255, 60, 60, 60)),
             BorderThickness = new Microsoft.UI.Xaml.Thickness(1),
             CornerRadius = new Microsoft.UI.Xaml.CornerRadius(8),
             Padding = new Microsoft.UI.Xaml.Thickness(0),
@@ -196,7 +196,7 @@ public static class MarkdownRenderer
         {
             Padding = new Microsoft.UI.Xaml.Thickness(12, 6, 12, 6),
             Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(
-                Microsoft.UI.Color.FromArgb(255, 45, 45, 45)),
+                Windows.UI.Color.FromArgb(255, 45, 45, 45)),
         };
         headerPanel.ColumnDefinitions.Add(new Microsoft.UI.Xaml.Controls.ColumnDefinition { Width = new Microsoft.UI.Xaml.GridLength(1, Microsoft.UI.Xaml.GridUnitType.Star) });
         headerPanel.ColumnDefinitions.Add(new Microsoft.UI.Xaml.Controls.ColumnDefinition { Width = Microsoft.UI.Xaml.GridLength.Auto });
@@ -207,7 +207,7 @@ public static class MarkdownRenderer
             FontSize = 12,
             FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
             Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(
-                Microsoft.UI.Color.FromArgb(255, 160, 160, 160)),
+                Windows.UI.Color.FromArgb(255, 160, 160, 160)),
             VerticalAlignment = Microsoft.UI.Xaml.VerticalAlignment.Center,
         };
         Microsoft.UI.Xaml.Controls.Grid.SetColumn(langText, 0);
@@ -220,19 +220,15 @@ public static class MarkdownRenderer
             Padding = new Microsoft.UI.Xaml.Thickness(6, 2, 6, 2),
             CornerRadius = new Microsoft.UI.Xaml.CornerRadius(4),
             Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(
-                Microsoft.UI.Color.FromArgb(255, 60, 60, 60)),
+                Windows.UI.Color.FromArgb(255, 60, 60, 60)),
             Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(
-                Microsoft.UI.Color.FromArgb(255, 200, 200, 200)),
+                Windows.UI.Color.FromArgb(255, 200, 200, 200)),
             VerticalAlignment = Microsoft.UI.Xaml.VerticalAlignment.Center,
-            ToolTipService.ToolTip,
         };
         Microsoft.UI.Xaml.Controls.ToolTipService.SetToolTip(copyBtn, "Copy code");
         Microsoft.UI.Xaml.Controls.Grid.SetColumn(copyBtn, 1);
         copyBtn.Click += (s, e) =>
         {
-            var dp = new Windows.UI.ViewManagement.Clipboard();
-            try { Windows.ApplicationModel.DataTransfer.Clipboard.Flush(); } catch { }
-            // Use a simple approach
             var dataPackage = new Windows.ApplicationModel.DataTransfer.DataPackage();
             dataPackage.SetText(code);
             Windows.ApplicationModel.DataTransfer.Clipboard.SetContent(dataPackage);
@@ -250,7 +246,7 @@ public static class MarkdownRenderer
             IsTextSelectionEnabled = true,
             Padding = new Microsoft.UI.Xaml.Thickness(12, 8, 12, 10),
             Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(
-                Microsoft.UI.Color.FromArgb(255, 212, 212, 212)),
+                Windows.UI.Color.FromArgb(255, 212, 212, 212)),
         };
 
         // Syntax highlighting

@@ -1,5 +1,6 @@
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Newtonsoft.Json;
 
 namespace AdvaBrowser;
 
@@ -73,9 +74,9 @@ public sealed partial class ArtifactsPage : Page
         var card = new Border
         {
             Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(
-                Microsoft.UI.Color.FromArgb(255, 30, 30, 30)),
+                Windows.UI.Color.FromArgb(255, 30, 30, 30)),
             BorderBrush = new Microsoft.UI.Xaml.Media.SolidColorBrush(
-                Microsoft.UI.Color.FromArgb(255, 60, 60, 60)),
+                Windows.UI.Color.FromArgb(255, 60, 60, 60)),
             BorderThickness = new Microsoft.UI.Xaml.Thickness(1),
             CornerRadius = new Microsoft.UI.Xaml.CornerRadius(8),
             Padding = new Microsoft.UI.Xaml.Thickness(0),
@@ -89,7 +90,7 @@ public sealed partial class ArtifactsPage : Page
         {
             Padding = new Thickness(12, 8, 12, 8),
             Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(
-                Microsoft.UI.Color.FromArgb(255, 45, 45, 45)),
+                Windows.UI.Color.FromArgb(255, 45, 45, 45)),
         };
         headerGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         headerGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
@@ -101,7 +102,7 @@ public sealed partial class ArtifactsPage : Page
             FontSize = 13,
             FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
             Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(
-                Microsoft.UI.Color.FromArgb(255, 180, 180, 180)),
+                Windows.UI.Color.FromArgb(255, 180, 180, 180)),
             VerticalAlignment = VerticalAlignment.Center,
         };
         Grid.SetColumn(titleLabel, 0);
@@ -122,9 +123,9 @@ public sealed partial class ArtifactsPage : Page
             Padding = new Thickness(8, 4, 8, 4),
             CornerRadius = new CornerRadius(4),
             Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(
-                Microsoft.UI.Color.FromArgb(255, 60, 60, 60)),
+                Windows.UI.Color.FromArgb(255, 60, 60, 60)),
             Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(
-                Microsoft.UI.Color.FromArgb(255, 220, 220, 220)),
+                Windows.UI.Color.FromArgb(255, 220, 220, 220)),
             VerticalAlignment = VerticalAlignment.Center,
             Margin = new Thickness(8, 0, 0, 0),
         };
@@ -148,7 +149,7 @@ public sealed partial class ArtifactsPage : Page
                 FontSize = 12,
                 FontFamily = new Microsoft.UI.Xaml.Media.FontFamily("Cascadia Code"),
                 Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(
-                    Microsoft.UI.Color.FromArgb(255, 140, 140, 140)),
+                    Windows.UI.Color.FromArgb(255, 140, 140, 140)),
                 Padding = new Thickness(12, 4, 12, 4),
                 TextTrimming = TextTrimming.CharacterEllipsis,
                 MaxLines = 1,
@@ -166,9 +167,9 @@ public sealed partial class ArtifactsPage : Page
             FontFamily = new Microsoft.UI.Xaml.Media.FontFamily("Cascadia Code"),
             FontSize = 12,
             Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(
-                Microsoft.UI.Color.FromArgb(255, 25, 25, 25)),
+                Windows.UI.Color.FromArgb(255, 25, 25, 25)),
             Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(
-                Microsoft.UI.Color.FromArgb(255, 200, 200, 200)),
+                Windows.UI.Color.FromArgb(255, 200, 200, 200)),
             BorderThickness = new Thickness(0),
             Padding = new Thickness(12, 8, 12, 12),
             MaxHeight = 300,

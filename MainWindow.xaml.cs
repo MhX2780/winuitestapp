@@ -210,6 +210,7 @@ public sealed partial class MainWindow : Window
         ContentFrame.Navigate(tag switch
         {
             "home" => typeof(HomePage),
+            "artifacts" => typeof(ArtifactsPage),
             "settings" => typeof(SettingsPage),
             _ => typeof(HomePage),
         });

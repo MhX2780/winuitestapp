@@ -28,25 +28,30 @@
                     <SymbolIcon Symbol="Message" />
                 </NavigationViewItem.Icon>
             </NavigationViewItem>
+            <NavigationViewItem Content="Artifacts" Tag="artifacts" ToolTipService.ToolTip="Artifacts">
+                <NavigationViewItem.Icon>
+                    <SymbolIcon Symbol="Code" />
+                </NavigationViewItem.Icon>
+            </NavigationViewItem>
         </NavigationView.MenuItems>
 
         <NavigationView.FooterMenuItems>
-            <NavigationViewItem Tag="undo" ToolTipService.ToolTip="Undo Last Change">
+            <NavigationViewItem Content="Undo Last Change" Tag="undo" ToolTipService.ToolTip="Undo Last Change">
                 <NavigationViewItem.Icon>
                     <SymbolIcon Symbol="Undo" />
                 </NavigationViewItem.Icon>
             </NavigationViewItem>
-            <NavigationViewItem Tag="clear" ToolTipService.ToolTip="Clear Chat History">
+            <NavigationViewItem Content="Clear Chat" Tag="clear" ToolTipService.ToolTip="Clear Chat History">
                 <NavigationViewItem.Icon>
                     <SymbolIcon Symbol="Delete" />
                 </NavigationViewItem.Icon>
             </NavigationViewItem>
-            <NavigationViewItem Tag="newchat" ToolTipService.ToolTip="New Conversation">
+            <NavigationViewItem Content="New Chat" Tag="newchat" ToolTipService.ToolTip="New Conversation">
                 <NavigationViewItem.Icon>
                     <SymbolIcon Symbol="Add" />
                 </NavigationViewItem.Icon>
             </NavigationViewItem>
-            <NavigationViewItem Tag="history" ToolTipService.ToolTip="Chat History">
+            <NavigationViewItem Content="Chat History" Tag="history" ToolTipService.ToolTip="Chat History">
                 <NavigationViewItem.Icon>
                     <SymbolIcon Symbol="Calendar" />
                 </NavigationViewItem.Icon>

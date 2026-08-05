@@ -46,11 +46,9 @@ public sealed partial class HomePage : Page
         if (sender is RichTextBlock rtb && rtb.DataContext is ChatMessage msg)
         {
             rtb.Blocks.Clear();
-            var paragraph = new Paragraph();
-            var inlines = MarkdownRenderer.ParseInlines(msg.Content ?? "");
-            foreach (var inline in inlines)
-                paragraph.Inlines.Add(inline);
-            rtb.Blocks.Add(paragraph);
+            var blocks = MarkdownRenderer.ParseBlocks(msg.Content ?? "");
+            foreach (var block in blocks)
+                rtb.Blocks.Add(block);
         }
     }
 

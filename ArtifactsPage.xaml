@@ -1,0 +1,46 @@
+<Page
+    x:Class="AdvaBrowser.ArtifactsPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="using:AdvaBrowser">
+
+    <Grid Background="Transparent">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <!-- Header -->
+        <Grid Grid.Row="0" Padding="16,12,16,8" Background="Transparent">
+            <StackPanel Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
+                <TextBlock Text="Artifacts" FontSize="22" FontWeight="Bold"
+                           Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+                <TextBlock x:Name="ArtifactCount" Text="" FontSize="12"
+                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                           VerticalAlignment="Center"/>
+            </StackPanel>
+        </Grid>
+
+        <!-- Content -->
+        <ScrollViewer Grid.Row="1" Padding="16,8,16,16"
+                      HorizontalScrollBarVisibility="Disabled"
+                      VerticalScrollBarVisibility="Auto">
+            <StackPanel x:Name="ArtifactsPanel" Spacing="12"/>
+        </ScrollViewer>
+
+        <!-- Empty State -->
+        <StackPanel x:Name="EmptyPanel" Grid.Row="1"
+                    VerticalAlignment="Center" HorizontalAlignment="Center"
+                    Spacing="12" Visibility="Visible">
+            <FontIcon Glyph="&#xE943;" FontSize="48" HorizontalAlignment="Center"
+                      Foreground="{ThemeResource TextFillColorTertiaryBrush}"/>
+            <TextBlock Text="No code artifacts yet" FontSize="18"
+                       HorizontalAlignment="Center"
+                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+            <TextBlock Text="Code blocks from chat responses will appear here as copyable cards."
+                       FontSize="13" TextWrapping="Wrap" HorizontalAlignment="Center"
+                       TextAlignment="Center"
+                       Foreground="{ThemeResource TextFillColorTertiaryBrush}"/>
+        </StackPanel>
+    </Grid>
+</Page>

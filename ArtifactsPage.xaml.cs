@@ -30,7 +30,7 @@ public sealed partial class ArtifactsPage : Page
             if (System.IO.File.Exists(ConfigManager.ActiveChatFile))
             {
                 var json = System.IO.File.ReadAllText(ConfigManager.ActiveChatFile);
-                var msgs = Newtonsoft.Json.DeserializeObject<List<ChatMessage>>(json);
+                var msgs = JsonConvert.DeserializeObject<List<ChatMessage>>(json);
                 if (msgs != null)
                 {
                     int msgIndex = 0;

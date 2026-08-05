@@ -126,7 +126,10 @@ public sealed partial class HomePage : Page
         _cts = new();
         try
         {
-            var history = _messages.Where(m => m.Role is "user" or "model").Select(m =>
+            // Build history WITHOUT the just-added user message (it will be added by SendStreamingAsync)
+            var history = _messages.Where(m => m.Role is "user" or "model")
+                .Where(m => m.Content != text || m.Role != "user") // exclude the message we just added
+                .Select(m =>
                 new Dictionary<string, object>
                 {
                     { "role", m.Role },
@@ -136,7 +139,11 @@ public sealed partial class HomePage : Page
             await _service.SendStreamingAsync(history, text, _cts.Token);
         }
         catch (OperationCanceledException) { }
-        catch (Exception ex) { OnErr($"Error: {ex.Message}"); }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[UGA SendError] {ex}\n{ex.StackTrace}");
+            OnErr($"Error: {ex.Message}");
+        }
     }
 
     private void OnToken(string t)

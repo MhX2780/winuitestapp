@@ -155,11 +155,7 @@
                              AcceptsReturn="True" TextWrapping="Wrap"
                              MaxHeight="150" MinHeight="44"
                              KeyDown="InputTextBox_KeyDown" FontSize="14"
-                             Background="{ThemeResource CardBackgroundFillColorDefaultBrush}">
-                        <TextBox.KeyboardAccelerators>
-                            <KeyboardAccelerator Key="Enter" Modifiers="Control" Invoked="CtrlEnter_Invoked"/>
-                        </TextBox.KeyboardAccelerators>
-                    </TextBox>
+                             Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"/>
                     <Button Grid.Column="1" x:Name="SendButton"
                             Click="SendButton_Click"
                             Style="{ThemeResource AccentButtonStyle}"

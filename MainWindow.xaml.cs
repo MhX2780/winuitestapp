@@ -1,5 +1,4 @@
 using Microsoft.UI;
-using Microsoft.UI.Input;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
@@ -63,12 +62,12 @@ public sealed partial class MainWindow : Window
     {
         // Hand cursor on all NavigationView menu items
         foreach (NavigationViewItem item in RootNav.MenuItems)
-            Win32Cursor.SetHandOn(item);
+            CursorHelper.SetHandOn(item);
         foreach (NavigationViewItem item in RootNav.FooterMenuItems)
-            Win32Cursor.SetHandOn(item);
+            CursorHelper.SetHandOn(item);
         // Pane toggle button (hamburger) - find via VisualTreeHelper
         foreach (var child in FindVisualChildren<Button>(RootNav))
-            Win32Cursor.SetHandOn(child);
+            CursorHelper.SetHandOn(child);
     }
 
     private static IEnumerable<T> FindVisualChildren<T>(DependencyObject depObj) where T : DependencyObject

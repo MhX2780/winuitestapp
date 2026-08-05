@@ -59,51 +59,97 @@ public class GeminiService : IDisposable
 
     /// <summary>
     /// Main streaming chat entrypoint with tool-calling loop.
-    /// Mirrors UGA agent.py send_stream() exactly.
+    /// The caller must NOT include the user message in history — this method adds it.
+    /// Returns the final model text response (empty if none).
     /// </summary>
-    public async Task SendStreamingAsync(List<Dictionary<string, object>> history, string userMessage, CancellationToken ct = default)
+    public async Task<string> SendStreamingAsync(List<Dictionary<string, object>> history, string userMessage, CancellationToken ct = default)
     {
         IsBusy = true;
+        string finalText = "";
         try
         {
             var sysPrompt = ConfigManager.Settings.SystemPromptOverride;
             if (string.IsNullOrEmpty(sysPrompt)) sysPrompt = BuildSystemPrompt();
 
-            // Add user message
+            System.Diagnostics.Debug.WriteLine($"[Gemini] Sending to {CurrentModel}, history count={history.Count}, msg length={userMessage.Length}");
+
+            // Add user message to history
             history.Add(MakeUserContent(userMessage));
 
             // Non-streaming call to check for tool calls
             var body = BuildRequestBody(history, sysPrompt);
+            var serializedBody = JsonConvert.SerializeObject(body);
+            System.Diagnostics.Debug.WriteLine($"[Gemini] Request body length={serializedBody.Length}");
+
             var respJson = await PostGenerate(body, ct);
-            var respObj = JObject.Parse(respJson);
+            System.Diagnostics.Debug.WriteLine($"[Gemini] Response length={respJson?.Length ?? 0}");
+
+            JObject respObj;
+            try { respObj = JObject.Parse(respJson); }
+            catch (Exception parseEx)
+            {
+                System.Diagnostics.Debug.WriteLine($"[Gemini] Failed to parse response: {parseEx.Message}");
+                OnError?.Invoke($"Failed to parse API response: {parseEx.Message}");
+                return "";
+            }
+
             var parts = GetParts(respObj);
+
+            // Check if API returned an error block instead of content
+            if (parts.Count == 0)
+            {
+                System.Diagnostics.Debug.WriteLine($"[Gemini] Empty parts. Full response: {respJson}");
+                // Maybe the response has error details
+                var errMsg = respObj["error"]?["message"]?.ToString();
+                if (!string.IsNullOrEmpty(errMsg))
+                    OnError?.Invoke($"API Error: {errMsg}");
+                return "";
+            }
 
             if (HasFunctionCall(parts))
             {
-                // Run tool calling loop
-                await RunToolCallLoop(history, sysPrompt, respObj, ct);
-
-                // Stream the final response
-                var finalSysPrompt = string.IsNullOrEmpty(ConfigManager.Settings.SystemPromptOverride) ? BuildSystemPrompt() : ConfigManager.Settings.SystemPromptOverride;
-                await StreamFinalResponse(history, finalSysPrompt, ct);
+                // Run tool calling loop — returns final text from last model response
+                finalText = await RunToolCallLoop(history, sysPrompt, respObj, ct);
             }
             else
             {
-                // No tools needed - yield text directly
-                var text = ExtractText(parts);
-                OnTokenReceived?.Invoke(text);
+                // No tools needed — emit text directly
+                finalText = ExtractText(parts);
             }
 
-            // Log final response (memory logging handled by OnDone in HomePage)
-            var finalText = ExtractText(parts);
-            history.Add(MakeModelContent(finalText));
+            System.Diagnostics.Debug.WriteLine($"[Gemini] Final text length={finalText.Length}");
+
+            // Emit the response to UI
+            if (!string.IsNullOrEmpty(finalText))
+            {
+                OnTokenReceived?.Invoke(finalText);
+                // Add model response to history
+                history.Add(MakeModelContent(finalText));
+            }
         }
-        catch (OperationCanceledException) { }
-        catch (Exception ex) { OnError?.Invoke($"Error: {ex.Message}"); }
-        finally { IsBusy = false; OnComplete?.Invoke(); }
+        catch (OperationCanceledException)
+        {
+            System.Diagnostics.Debug.WriteLine("[Gemini] Cancelled");
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[Gemini] Exception: {ex.Message}\n{ex.StackTrace}");
+            OnError?.Invoke($"Error: {ex.Message}");
+        }
+        finally
+        {
+            IsBusy = false;
+            OnComplete?.Invoke();
+        }
+
+        return finalText;
     }
 
-    private async Task RunToolCallLoop(List<Dictionary<string, object>> history, string sysPrompt, JObject respObj, CancellationToken ct)
+    /// <summary>
+    /// Tool calling loop. Processes function calls, executes tools, feeds results back.
+    /// Returns the final text from the last model response (after all tools are done).
+    /// </summary>
+    private async Task<string> RunToolCallLoop(List<Dictionary<string, object>> history, string sysPrompt, JObject respObj, CancellationToken ct)
     {
         int rounds = 0;
         var maxRounds = 15;
@@ -112,8 +158,27 @@ public class GeminiService : IDisposable
         while (HasFunctionCall(parts) && rounds < maxRounds)
         {
             rounds++;
-            // Add model's turn to history
-            history.Add(respObj["candidates"]?[0]?["content"]?.ToObject<Dictionary<string, object>>() ?? new());
+            System.Diagnostics.Debug.WriteLine($"[Gemini] Tool round {rounds}");
+
+            // Add model's response to history — convert via JSON round-trip to avoid JObject mixing
+            var contentToken = respObj["candidates"]?[0]?["content"];
+            if (contentToken != null)
+            {
+                try
+                {
+                    var contentJson = contentToken.ToString();
+                    var contentDict = JsonConvert.DeserializeObject<Dictionary<string, object>>(contentJson);
+                    if (contentDict != null)
+                        history.Add(contentDict);
+                    else
+                        history.Add(new Dictionary<string, object> { { "role", "model" }, { "parts", new List<object>() } });
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"[Gemini] Failed to convert model content: {ex.Message}");
+                    history.Add(new Dictionary<string, object> { { "role", "model" }, { "parts", new List<object>() } });
+                }
+            }
 
             foreach (var fc in GetFunctionCalls(parts))
             {
@@ -121,7 +186,21 @@ public class GeminiService : IDisposable
                 var fnArgs = fc["args"]?.ToString() ?? "{}";
                 OnToolCallStarted?.Invoke(fnName);
 
-                var (result, success) = await ToolExecutor.ExecuteAsync(fnName, fnArgs, ct);
+                System.Diagnostics.Debug.WriteLine($"[Gemini] Tool: {fnName}");
+
+                string result;
+                bool success;
+                try
+                {
+                    (result, success) = await ToolExecutor.ExecuteAsync(fnName, fnArgs, ct);
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"[Gemini] Tool {fnName} threw: {ex.Message}");
+                    result = $"Tool error: {ex.Message}";
+                    success = false;
+                }
+
                 MemoryManager.RecordExecution(fnName,
                     JsonConvert.DeserializeObject<Dictionary<string, string>>(fnArgs) ?? new(), result, success);
 
@@ -147,55 +226,49 @@ public class GeminiService : IDisposable
             // Rebuild system prompt fresh
             sysPrompt = string.IsNullOrEmpty(ConfigManager.Settings.SystemPromptOverride) ? BuildSystemPrompt() : ConfigManager.Settings.SystemPromptOverride;
             var body = BuildRequestBody(history, sysPrompt);
-            var respJson = await PostGenerate(body, ct);
-            respObj = JObject.Parse(respJson);
-            parts = GetParts(respObj);
-        }
-    }
 
-    private async Task StreamFinalResponse(List<Dictionary<string, object>> history, string sysPrompt, CancellationToken ct)
-    {
-        var body = BuildRequestBody(history, sysPrompt);
-        var url = $"{BASE}{Uri.EscapeDataString(CurrentModel)}:streamGenerateContent?alt=sse&key={ApiKey}";
-
-        var content = new StringContent(JsonConvert.SerializeObject(body));
-        content.Headers.ContentType = new MediaTypeHeaderValue("application/json");
-
-        using var resp = await _http.PostAsync(url, content, ct);
-        resp.EnsureSuccessStatusCode();
-
-        using var stream = await resp.Content.ReadAsStreamAsync(ct);
-        using var reader = new StreamReader(stream);
-
-        while (!reader.EndOfStream)
-        {
-            ct.ThrowIfCancellationRequested();
-            var line = await reader.ReadLineAsync(ct);
-            if (string.IsNullOrEmpty(line) || !line.StartsWith("data: ")) continue;
-            var data = line["data: ".Length..];
-            if (data == "[DONE]") break;
+            string respJson;
             try
             {
-                var chunk = JObject.Parse(data);
-                var parts = GetParts(chunk);
-                var text = ExtractText(parts);
-                if (!string.IsNullOrEmpty(text))
-                    OnTokenReceived?.Invoke(text);
+                respJson = await PostGenerate(body, ct);
             }
-            catch { }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[Gemini] API call failed in tool loop: {ex.Message}");
+                OnError?.Invoke($"API error during tool loop: {ex.Message}");
+                return "";
+            }
+
+            try { respObj = JObject.Parse(respJson); }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[Gemini] Failed to parse tool loop response: {ex.Message}");
+                return "";
+            }
+
+            parts = GetParts(respObj);
         }
+
+        // Extract final text from the last response
+        var finalText = ExtractText(parts);
+        System.Diagnostics.Debug.WriteLine($"[Gemini] Tool loop done after {rounds} rounds, final text length={finalText.Length}");
+        return finalText;
     }
 
     private async Task<string> PostGenerate(object body, CancellationToken ct)
     {
         var url = $"{BASE}{Uri.EscapeDataString(CurrentModel)}:generateContent?key={ApiKey}";
-        var content = new StringContent(JsonConvert.SerializeObject(body));
+        var json = JsonConvert.SerializeObject(body);
+        var content = new StringContent(json);
         content.Headers.ContentType = new MediaTypeHeaderValue("application/json");
+
+        System.Diagnostics.Debug.WriteLine($"[Gemini] POST to {CurrentModel}, body length={json.Length}");
 
         var resp = await _http.PostAsync(url, content, ct);
         if (!resp.IsSuccessStatusCode)
         {
             var err = await resp.Content.ReadAsStringAsync(ct);
+            System.Diagnostics.Debug.WriteLine($"[Gemini] API error {resp.StatusCode}: {err}");
             throw new Exception($"API {resp.StatusCode}: {err}");
         }
         return await resp.Content.ReadAsStringAsync(ct);
@@ -203,7 +276,7 @@ public class GeminiService : IDisposable
 
     private Dictionary<string, object> BuildRequestBody(List<Dictionary<string, object>> history, string sysPrompt)
     {
-        var toolsEnabled = true; // check ConfigManager settings if needed
+        var toolsEnabled = true;
         var body = new Dictionary<string, object>
         {
             { "contents", history },
@@ -242,54 +315,44 @@ public class MultiAgentOrchestrator
     {
         if (!ConfigManager.MultiAgentEnabled)
         {
-            yield break; // Falls back to normal single-agent in caller
+            yield break;
         }
 
-        // Classify
         var classifierModel = ConfigManager.MultiAgentRoles.GetValueOrDefault("classifier") ?? "gemini-2.5-flash-lite";
         var classification = await Classify(userMessage, classifierModel);
         yield return new() { Kind = "classified", Data = new() { ["complexity"] = classification } };
 
         if (classification == "simple")
         {
-            yield break; // Caller handles simple path
+            yield break;
         }
 
-        // Plan
         var plannerModel = ConfigManager.MultiAgentRoles.GetValueOrDefault("planner") ?? "gemini-3.6-flash";
         var steps = await Plan(userMessage, plannerModel);
         yield return new() { Kind = "plan_ready", Data = new() { ["steps"] = JsonConvert.SerializeObject(steps) } };
 
-        // Execute each step
         var executorModel = ConfigManager.MultiAgentRoles.GetValueOrDefault("executor") ?? "gemini-3.5-flash";
         var planStr = string.Join("\n", steps.Select((s, i) => $"{i + 1}. {s}"));
 
         for (int i = 0; i < steps.Count; i++)
         {
-            yield return new() { Kind = "step_start", Data = new() { ["step_number"] = i + 1, ["total_steps"] = steps.Count, ["description"] = steps[i] } };
-            // Step execution happens through normal tool-calling flow
-            // The executor prompt guides the model to work on this specific step
+            yield return new() { Kind = "step_start", Data = new() { ["step_number"] = i + 1, "total_steps"] = steps.Count, ["description"] = steps[i] } };
             yield return new() { Kind = "step_done", Data = new() { ["step_number"] = i + 1 } };
         }
 
-        // Review
         var reviewerModel = ConfigManager.MultiAgentRoles.GetValueOrDefault("reviewer") ?? "gemini-2.5-flash-lite";
-        // Review summary would be generated here
     }
 
     private async Task<string> Classify(string userMessage, string model)
     {
-        // Use GeminiService to call the classifier
         var origModel = _service.CurrentModel;
         _service.CurrentModel = model;
-        // Simplified: for now return "simple" 
         _service.CurrentModel = origModel;
         return "simple";
     }
 
     private async Task<List<string>> Plan(string userMessage, string model)
     {
-        // Returns plan steps - simplified
         return new() { userMessage };
     }
 }

@@ -1,4 +1,3 @@
-using Microsoft.UI.Input;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Windows.Storage.Pickers;
@@ -57,7 +56,7 @@ public sealed partial class SettingsPage : Page
     /// </summary>
     private static void SetHand(UIElement el)
     {
-        Win32Cursor.SetHandOn(el);
+        CursorHelper.SetHandOn(el);
     }
 
     private void LoadUI()

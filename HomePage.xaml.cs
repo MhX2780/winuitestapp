@@ -1,4 +1,3 @@
-using Microsoft.UI.Input;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
@@ -33,25 +32,27 @@ public sealed partial class HomePage : Page
         SetHand(NewChatButton);
     }
 
-    /// <summary>
-    /// Sets hand cursor via Win32 SetCursor on pointer enter/leave.
-    /// ProtectedCursor is protected in WinUI 3, so we use P/Invoke.
-    /// </summary>
     private static void SetHand(UIElement el)
     {
-        el.PointerEntered += (_, _) => Win32Cursor.SetHand();
-        el.PointerExited += (_, _) => Win32Cursor.SetArrow();
+        CursorHelper.SetHandOn(el);
     }
 
     private void InputTextBox_KeyDown(object sender, KeyRoutedEventArgs e)
     {
-        // Handled via KeyboardAccelerator (CtrlEnter_Invoked) for reliable Ctrl+Enter
-    }
+        if (e.Key == Windows.System.VirtualKey.Enter)
+        {
+            // Check Ctrl modifier
+            var ctrlState = Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(Windows.System.VirtualKey.Control);
+            bool ctrlHeld = ctrlState.HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down);
 
-    private void CtrlEnter_Invoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args)
-    {
-        args.Handled = true;
-        _ = SendMessageAsync();
+            if (ctrlHeld)
+            {
+                // Ctrl+Enter = Send
+                e.Handled = true; // Prevent newline
+                _ = SendMessageAsync();
+            }
+            // else: let AcceptsReturn handle Enter = newline
+        }
     }
 
     private void SendButton_Click(object sender, RoutedEventArgs e) => _ = SendMessageAsync();
@@ -72,26 +73,36 @@ public sealed partial class HomePage : Page
 
     private async void Undo_Click(object sender, RoutedEventArgs e)
     {
-        var (result, success) = await ToolExecutor.ExecuteAsync("undo_last_change", "{}");
-        _messages.Add(new() { Role = "system", Content = result });
-        Bind();
+        try
+        {
+            var (result, success) = await ToolExecutor.ExecuteAsync("undo_last_change", "{}");
+            _messages.Add(new() { Role = "system", Content = result });
+            Bind();
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[UGA Undo Error] {ex.Message}");
+        }
     }
 
     private async Task SendMessageAsync()
     {
+        // Save text BEFORE anything else
         var text = InputTextBox.Text?.Trim();
         if (string.IsNullOrEmpty(text)) return;
 
-        // Check API key
+        // Check API key — show dialog if missing
         if (!ConfigManager.HasApiKey)
         {
+            InputTextBox.IsEnabled = false;
+            SendButton.IsEnabled = false;
+
             var pwd = new PasswordBox { PlaceholderText = "Enter Gemini API Key..." };
             var panel = new StackPanel { Spacing = 8 };
             panel.Children.Add(new TextBlock
             {
                 Text = "Enter your Gemini API key to start chatting.",
-                Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(
-                    Microsoft.UI.Colors.White)
+                Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.White)
             });
             panel.Children.Add(pwd);
 
@@ -99,20 +110,26 @@ public sealed partial class HomePage : Page
             {
                 Title = "API Key Required",
                 Content = panel,
-                PrimaryButtonText = "Save",
+                PrimaryButtonText = "Save & Send",
                 CloseButtonText = "Cancel",
                 XamlRoot = XamlRoot,
             };
-            if (await dlg.ShowAsync() == ContentDialogResult.Primary
-                && !string.IsNullOrWhiteSpace(pwd.Password))
+
+            var result = await dlg.ShowAsync();
+            InputTextBox.IsEnabled = true;
+            SendButton.IsEnabled = true;
+
+            if (result == ContentDialogResult.Primary && !string.IsNullOrWhiteSpace(pwd.Password))
             {
                 ConfigManager.SaveApiKey(pwd.Password);
                 _service = new GeminiService();
+                // Re-send with the same text (saved above)
                 await SendMessageAsync();
             }
             return;
         }
 
+        // Clear input and show user message in chat
         InputTextBox.Text = "";
         _messages.Add(new() { Role = "user", Content = text });
         _streamingMsg = null;
@@ -124,19 +141,17 @@ public sealed partial class HomePage : Page
         StatusText.Text = "Thinking...";
         SendButton.IsEnabled = false;
 
-        // Taskbar progress
         TaskbarProgress.SetIndeterminate();
 
         _service ??= new GeminiService();
 
-        // Detach first to prevent handler accumulation on repeated sends
+        // Detach first to prevent handler accumulation
         _service.OnTokenReceived -= OnToken;
         _service.OnToolCallStarted -= OnToolStart;
         _service.OnToolCallCompleted -= OnToolDone;
         _service.OnError -= OnErr;
         _service.OnComplete -= OnDone;
 
-        // Attach event handlers
         _service.OnTokenReceived += OnToken;
         _service.OnToolCallStarted += OnToolStart;
         _service.OnToolCallCompleted += OnToolDone;
@@ -146,22 +161,24 @@ public sealed partial class HomePage : Page
         _cts = new();
         try
         {
-            // Build history WITHOUT the just-added user message (it will be added by SendStreamingAsync)
-            var history = _messages.Where(m => m.Role is "user" or "model")
-                .Where(m => m.Content != text || m.Role != "user") // exclude the message we just added
-                .Select(m =>
-                new Dictionary<string, object>
+            // Build history from previous messages only (not the one we just added)
+            var history = _messages
+                .Where(m => m.Role is "user" or "model")
+                .Where(m => !(m.Role == "user" && m.Content == text)) // exclude current message
+                .Select(m => new Dictionary<string, object>
                 {
                     { "role", m.Role },
                     { "parts", new[] { new { text = m.Content } } }
                 }).ToList();
+
+            System.Diagnostics.Debug.WriteLine($"[UGA] Sending message, history={history.Count}, text={text.Length}");
 
             await _service.SendStreamingAsync(history, text, _cts.Token);
         }
         catch (OperationCanceledException) { }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[UGA SendError] {ex}\n{ex.StackTrace}");
+            System.Diagnostics.Debug.WriteLine($"[UGA SendError] {ex.Message}\n{ex.StackTrace}");
             OnErr($"Error: {ex.Message}");
         }
     }
@@ -170,6 +187,7 @@ public sealed partial class HomePage : Page
     {
         DispatcherQueue.TryEnqueue(() =>
         {
+            if (string.IsNullOrEmpty(t)) return;
             if (_streamingMsg == null)
                 _streamingMsg = new()
                 {

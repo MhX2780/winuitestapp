@@ -1,6 +1,7 @@
+using Microsoft.UI;
+using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
-using Windows.Graphics;
 
 namespace AdvaBrowser;
 
@@ -10,50 +11,56 @@ public sealed partial class MainWindow : Window
     {
         this.InitializeComponent();
 
-        var appWindow = this.AppWindow;
-        if (appWindow != null)
+        // Extended title bar with tall height (from Content.md)
+        AppWindow.TitleBar.ExtendsContentIntoTitleBar = true;
+        if (AppWindow.TitleBar.ExtendsContentIntoTitleBar)
+            AppWindow.TitleBar.HeightOption = TitleBarHeightOption.Tall;
+
+        // Set window size
+        this.AppWindow.Resize(new SizeInt32(1200, 800));
+        this.AppWindow.Title = "UGA";
+
+        // Initialize taskbar progress
+        var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
+        TaskbarProgress.Initialize(hwnd);
+
+        // Custom pane header as drag region for title bar
+        RootNav.PaneHeader = new Grid
         {
-            appWindow.Resize(new SizeInt32(1200, 800));
-        }
+            Height = 48,
+            Children =
+            {
+                new TextBlock
+                {
+                    Text = "UGA",
+                    FontSize = 20,
+                    FontWeight = Microsoft.UI.Text.FontWeights.Bold,
+                    VerticalAlignment = VerticalAlignment.Center,
+                    Margin = new Thickness(16, 0, 0, 0),
+                }
+            }
+        };
     }
 
     private void RootNav_Loaded(object sender, RoutedEventArgs e)
     {
-        // Select the first item by default
-        if (RootNav.MenuItems.Count > 0)
-        {
-            RootNav.SelectedItem = RootNav.MenuItems[0];
-        }
-        NavigateTo("home");
+        RootNav.SelectedItem = RootNav.MenuItems[0];
+        Navigate("home");
     }
 
     private void RootNav_SelectionChanged(NavigationView sender, NavigationViewSelectionChangedEventArgs args)
     {
-        if (args.SelectedItem is NavigationViewItem item && item.Tag is string tag)
-        {
-            NavigateTo(tag);
-        }
+        if (args.SelectedItemContainer is NavigationViewItem item && item.Tag is string tag)
+            Navigate(tag);
     }
 
-    private void NavigateTo(string tag)
+    private void Navigate(string tag)
     {
-        // Placeholder navigation. Wire up real pages here as they are built.
-        ShowLoading(true);
-
-        ContentFrame.Content = new TextBlock
+        ContentFrame.Navigate(tag switch
         {
-            Text = $"Section: {tag}",
-            FontSize = 24,
-            HorizontalAlignment = HorizontalAlignment.Center,
-            VerticalAlignment = VerticalAlignment.Center
-        };
-
-        ShowLoading(false);
-    }
-
-    private void ShowLoading(bool isLoading)
-    {
-        LoadingRing.IsActive = isLoading;
-        LoadingRing.Visibility = isLoading ? Visibility.Visible : Visibility.Collapsed;
+            "home" => typeof(HomePage),
+            "settings" => typeof(SettingsPage),
+            _ => typeof(HomePage),
+        });
     }
 }

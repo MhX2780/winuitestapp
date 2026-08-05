@@ -1,0 +1,204 @@
+<Page
+    x:Class="AdvaBrowser.SettingsPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="using:AdvaBrowser">
+
+    <ScrollViewer Padding="32,24,32,32" Background="Transparent"
+                 HorizontalScrollBarVisibility="Disabled">
+        <StackPanel Spacing="24" MaxWidth="800" HorizontalAlignment="Stretch">
+
+            <!-- ═══ API Key ═══ -->
+            <TextBlock Text="API Configuration" FontSize="22" FontWeight="Bold"
+                       Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+            <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                    BorderThickness="1" CornerRadius="8" Padding="20">
+                <StackPanel Spacing="12">
+                    <TextBlock Text="Gemini API Key" FontWeight="SemiBold"
+                               Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+                    <PasswordBox x:Name="ApiKeyBox" PlaceholderText="Enter API key..."
+                                 Width="400"/>
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <Button Content="Save Key" Click="SaveKey_Click"
+                                Style="{ThemeResource AccentButtonStyle}" CornerRadius="6"/>
+                        <Button Content="Reset Key" Click="ResetKey_Click" CornerRadius="6"/>
+                    </StackPanel>
+                    <TextBlock x:Name="KeyStatus" FontSize="12"
+                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                </StackPanel>
+            </Border>
+
+            <!-- ═══ Model Selection ═══ -->
+            <TextBlock Text="Model Configuration" FontSize="22" FontWeight="Bold" Margin="0,12,0,0"
+                       Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+            <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                    BorderThickness="1" CornerRadius="8" Padding="20">
+                <StackPanel Spacing="12">
+                    <TextBlock Text="Primary Model" FontWeight="SemiBold"
+                               Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+                    <ComboBox x:Name="ModelCombo" Width="400" SelectedIndex="0" CornerRadius="6">
+                        <ComboBoxItem Content="gemini-3.6-flash"/>
+                        <ComboBoxItem Content="gemini-3.5-flash"/>
+                        <ComboBoxItem Content="gemini-3.5-flash-lite"/>
+                        <ComboBoxItem Content="gemini-2.5-flash"/>
+                        <ComboBoxItem Content="gemini-2.5-pro"/>
+                        <ComboBoxItem Content="gemini-flash-latest"/>
+                        <ComboBoxItem Content="gemma-4-31b-it"/>
+                    </ComboBox>
+                    <TextBlock Text="Model Chain (fallback order, comma-separated)"
+                               FontWeight="SemiBold" Margin="0,8,0,0"
+                               Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+                    <TextBox x:Name="ModelChainBox"
+                             PlaceholderText="gemini-3.6-flash, gemini-3.5-flash, ..."
+                             Width="400" TextWrapping="Wrap"/>
+                </StackPanel>
+            </Border>
+
+            <!-- ═══ Workspace ═══ -->
+            <TextBlock Text="Workspace" FontSize="22" FontWeight="Bold" Margin="0,12,0,0"
+                       Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+            <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                    BorderThickness="1" CornerRadius="8" Padding="20">
+                <StackPanel Spacing="12">
+                    <Grid ColumnSpacing="8">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBox x:Name="WorkspaceBox"
+                                 PlaceholderText="Workspace directory path..."
+                                 TextWrapping="Wrap"/>
+                        <Button Grid.Column="1" Content="Browse" Click="Browse_Click"
+                                CornerRadius="6"/>
+                    </Grid>
+                    <TextBlock x:Name="WorkspaceStatus" FontSize="12"
+                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                </StackPanel>
+            </Border>
+
+            <!-- ═══ Tools ═══ -->
+            <TextBlock Text="Tools" FontSize="22" FontWeight="Bold" Margin="0,12,0,0"
+                       Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+            <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                    BorderThickness="1" CornerRadius="8" Padding="20">
+                <StackPanel Spacing="10">
+                    <ToggleSwitch x:Name="FileTools" Header="File Tools" IsOn="True"
+                                  ToolTipService.ToolTip="create_file, read_file, edit_file, delete_file, move, copy, rename, create_folder"/>
+                    <ToggleSwitch x:Name="SearchTools" Header="Search Tools" IsOn="True"
+                                  ToolTipService.ToolTip="find_file, find_folder, search_in_files, list_files, detect_language, file_stats, count_files, count_todos"/>
+                    <ToggleSwitch x:Name="GitTools" Header="Git Tools" IsOn="True"
+                                  ToolTipService.ToolTip="git_clone, git_status, git_diff, git_log, git_commit"/>
+                    <ToggleSwitch x:Name="ExecTools" Header="Execution Tools" IsOn="True"
+                                  ToolTipService.ToolTip="run_command, create_zip, extract_zip, zip_workspace, undo_last_change"/>
+                    <ToggleSwitch x:Name="CodeTools" Header="Code Quality Tools" IsOn="True"
+                                  ToolTipService.ToolTip="lint_check, diff_preview, compare_files, replace_in_files"/>
+                    <ToggleSwitch x:Name="NetworkTools" Header="Networking Tools" IsOn="False"
+                                  ToolTipService.ToolTip="check_port_in_use, http_request"/>
+                    <ToggleSwitch x:Name="SystemTools" Header="System Access Tools" IsOn="False"
+                                  ToolTipService.ToolTip="Available_Active_Windows, List_System_Processes (SENSITIVE)"/>
+                </StackPanel>
+            </Border>
+
+            <!-- ═══ Multi-Agent ═══ -->
+            <TextBlock Text="Multi-Agent Mode" FontSize="22" FontWeight="Bold" Margin="0,12,0,0"
+                       Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+            <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                    BorderThickness="1" CornerRadius="8" Padding="20">
+                <StackPanel Spacing="12">
+                    <ToggleSwitch x:Name="MultiAgent" Header="Enable Multi-Agent" IsOn="False"
+                                  ToolTipService.ToolTip="Classifier -&gt; Planner -&gt; Executor -&gt; Reviewer"/>
+                    <TextBlock Text="Classifier Model" FontWeight="SemiBold" Margin="0,4,0,0"/>
+                    <ComboBox x:Name="ClassifierCombo" Width="400" CornerRadius="6">
+                        <ComboBoxItem Content="gemini-2.5-flash-lite"/>
+                        <ComboBoxItem Content="gemini-3.6-flash"/>
+                        <ComboBoxItem Content="gemini-2.5-flash"/>
+                    </ComboBox>
+                    <TextBlock Text="Planner Model" FontWeight="SemiBold" Margin="0,4,0,0"/>
+                    <ComboBox x:Name="PlannerCombo" Width="400" CornerRadius="6">
+                        <ComboBoxItem Content="gemini-3.6-flash"/>
+                        <ComboBoxItem Content="gemini-2.5-pro"/>
+                        <ComboBoxItem Content="gemini-2.5-flash"/>
+                    </ComboBox>
+                    <TextBlock Text="Executor Model" FontWeight="SemiBold" Margin="0,4,0,0"/>
+                    <ComboBox x:Name="ExecutorCombo" Width="400" CornerRadius="6">
+                        <ComboBoxItem Content="gemini-3.5-flash"/>
+                        <ComboBoxItem Content="gemini-2.5-flash"/>
+                        <ComboBoxItem Content="gemini-3.6-flash"/>
+                    </ComboBox>
+                    <TextBlock Text="Reviewer Model" FontWeight="SemiBold" Margin="0,4,0,0"/>
+                    <ComboBox x:Name="ReviewerCombo" Width="400" CornerRadius="6">
+                        <ComboBoxItem Content="gemini-2.5-flash-lite"/>
+                        <ComboBoxItem Content="gemini-2.5-flash"/>
+                        <ComboBoxItem Content="gemini-3.5-flash"/>
+                    </ComboBox>
+                </StackPanel>
+            </Border>
+
+            <!-- ═══ Deep Thinking ═══ -->
+            <TextBlock Text="Deep Thinking" FontSize="22" FontWeight="Bold" Margin="0,12,0,0"
+                       Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+            <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                    BorderThickness="1" CornerRadius="8" Padding="20">
+                <StackPanel Spacing="12">
+                    <ToggleSwitch x:Name="DeepThinking" Header="Enable Deep Thinking" IsOn="False"
+                                  ToolTipService.ToolTip="Uses extra reasoning tokens before answering"/>
+                    <NumberBox x:Name="ThinkBudget" Header="Thinking Budget (-1 = dynamic)"
+                               Value="-1" Minimum="-1" Maximum="65536" Width="200"/>
+                    <ToggleSwitch x:Name="ThinkInclude" Header="Include Thought Summaries" IsOn="True"/>
+                </StackPanel>
+            </Border>
+
+            <!-- ═══ Providers ═══ -->
+            <TextBlock Text="Additional Providers" FontSize="22" FontWeight="Bold" Margin="0,12,0,0"
+                       Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+            <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                    BorderThickness="1" CornerRadius="8" Padding="20">
+                <StackPanel Spacing="12">
+                    <TextBlock Text="Claude (Anthropic) API Key" FontWeight="SemiBold"
+                               Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+                    <PasswordBox x:Name="ClaudeKeyBox" PlaceholderText="sk-ant-..." Width="400"/>
+                    <TextBlock Text="OpenAI API Key" FontWeight="SemiBold"
+                               Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+                    <PasswordBox x:Name="OpenAIKeyBox" PlaceholderText="sk-..." Width="400"/>
+                    <TextBlock Text="Puter.js Token" FontWeight="SemiBold"
+                               Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+                    <PasswordBox x:Name="PuterTokenBox" PlaceholderText="Puter auth token..." Width="400"/>
+                </StackPanel>
+            </Border>
+
+            <!-- ═══ Memory & System Prompt ═══ -->
+            <TextBlock Text="Memory &amp; Prompt" FontSize="22" FontWeight="Bold" Margin="0,12,0,0"
+                       Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+            <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                    BorderThickness="1" CornerRadius="8" Padding="20">
+                <StackPanel Spacing="12">
+                    <TextBlock Text="Custom System Prompt Override (empty = use default)"
+                               FontWeight="SemiBold"
+                               Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+                    <TextBox x:Name="SystemPromptBox" PlaceholderText="Leave empty for default..."
+                             AcceptsReturn="True" TextWrapping="Wrap"
+                             Height="100" Width="600" HorizontalAlignment="Left"/>
+                    <NumberBox x:Name="MaxHistory" Header="Max History Messages"
+                               Value="30" Minimum="5" Maximum="200" Width="200"/>
+                </StackPanel>
+            </Border>
+
+            <!-- ═══ Save / Reset ═══ -->
+            <StackPanel Orientation="Horizontal" Spacing="12" Margin="0,12,0,0">
+                <Button Content="Save All Settings" Click="SaveAll_Click"
+                        Style="{ThemeResource AccentButtonStyle}" MinWidth="160" CornerRadius="6"/>
+                <Button Content="Reset to Defaults" Click="ResetDefaults_Click" CornerRadius="6"/>
+            </StackPanel>
+            <TextBlock x:Name="SaveStatus" FontSize="13"
+                       Foreground="{ThemeResource SystemFillColorSuccessBrush}"/>
+        </StackPanel>
+    </ScrollViewer>
+</Page>

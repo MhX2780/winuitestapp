@@ -237,22 +237,27 @@ public static class MarkdownRenderer
 
         stack.Children.Add(headerPanel);
 
-        // Code content with syntax highlighting
-        var codeBlock = new Microsoft.UI.Xaml.Controls.TextBlock
+        // Code content with syntax highlighting via RichEditBox
+        var codeBox = new Microsoft.UI.Xaml.Controls.RichEditBox
         {
+            IsReadOnly = true,
             TextWrapping = Microsoft.UI.Xaml.TextWrapping.Wrap,
             FontFamily = new Microsoft.UI.Xaml.Media.FontFamily("Cascadia Code"),
             FontSize = 13,
             IsTextSelectionEnabled = true,
             Padding = new Microsoft.UI.Xaml.Thickness(12, 8, 12, 10),
+            Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(
+                Windows.UI.Color.FromArgb(255, 25, 25, 25)),
+            BorderThickness = new Microsoft.UI.Xaml.Thickness(0),
             Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(
                 Windows.UI.Color.FromArgb(255, 212, 212, 212)),
+            HorizontalAlignment = Microsoft.UI.Xaml.HorizontalAlignment.Stretch,
+            MinHeight = 40,
         };
 
-        // Syntax highlighting
-        var highlighted = ApplySyntaxHighlighting(code, language);
-        codeBlock.Text = highlighted;
-        stack.Children.Add(codeBlock);
+        codeBox.TextDocument.SetText(Windows.UI.Text.TextSetOptions.None, code);
+        SyntaxHighlighter.ApplyHighlighting(codeBox.TextDocument, language);
+        stack.Children.Add(codeBox);
 
         card.Child = stack;
 
@@ -264,23 +269,7 @@ public static class MarkdownRenderer
         return paragraph;
     }
 
-    /// <summary>
-    /// Applies basic syntax highlighting to code based on language.
-    /// Returns plain text with ANSI-like markers stripped (RichTextBlock doesn't
-    /// support per-character coloring easily, so we use a simplified approach).
-    /// 
-    /// For a RichTextBlock-based solution, we'd need Runs per token, but that
-    /// doesn't work well with InlineUIContainer. So we return highlighted text
-    /// and rely on the monospace font + dark background for visual appeal.
-    /// </summary>
-    private static string ApplySyntaxHighlighting(string code, string language)
-    {
-        // For the card display, we keep the text as-is since RichTextBlock
-        // inside InlineUIContainer can't easily have per-run coloring.
-        // The dark background + Cascadia Code provides good readability.
-        // Real per-token highlighting would require a custom control.
-        return code;
-    }
+    // Syntax highlighting is now handled by SyntaxHighlighter.cs using RichEditBox.
 
     // ─── Inline Parsing ───
 

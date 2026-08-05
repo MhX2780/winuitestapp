@@ -9,6 +9,12 @@ public partial class App : Application
 {
     public static Window? MainWindow { get; private set; }
 
+    /// <summary>
+    /// Static callback for HomePage to notify ArtifactsPage of new messages.
+    /// ArtifactsPage registers itself when navigated to, unregisters when leaving.
+    /// </summary>
+    public static Action<List<ChatMessage>>? ArtifactsRefreshCallback;
+
     public App()
     {
         this.InitializeComponent();

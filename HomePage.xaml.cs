@@ -555,6 +555,9 @@ public sealed partial class HomePage : Page
             SaveChatHistory();
             Bind();
             ScrollBottom();
+
+            // Notify ArtifactsPage to refresh (if it exists in the nav frame cache)
+            NotifyArtifactsRefresh();
         });
     }
 
@@ -569,5 +572,18 @@ public sealed partial class HomePage : Page
     {
         if (ChatListView.Items.Count > 0)
             ChatListView.ScrollIntoView(ChatListView.Items[^1]);
+    }
+
+    /// <summary>
+    /// Notifies the ArtifactsPage (if registered) to refresh with latest messages.
+    /// ArtifactsPage registers/unregisters itself via OnNavigatedTo/From.
+    /// </summary>
+    private void NotifyArtifactsRefresh()
+    {
+        try
+        {
+            App.ArtifactsRefreshCallback?.Invoke(_messages);
+        }
+        catch { }
     }
 }

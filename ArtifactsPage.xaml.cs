@@ -1,5 +1,6 @@
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Documents;
 using Newtonsoft.Json;
 
 namespace AdvaBrowser;
@@ -12,44 +13,81 @@ public sealed partial class ArtifactsPage : Page
         Loaded += ArtifactsPage_Loaded;
     }
 
+    // ── Navigation-aware refresh ──
+    // Frame.Navigated fires every time we navigate TO this page,
+    // unlike Loaded which only fires the first time the page is created.
+    protected override void OnNavigatedTo(NavigationEventArgs e)
+    {
+        base.OnNavigatedTo(e);
+        App.ArtifactsRefreshCallback = RefreshArtifacts;
+        RefreshArtifacts();
+    }
+
+    protected override void OnNavigatedFrom(NavigationEventArgs e)
+    {
+        base.OnNavigatedFrom(e);
+        // Unregister callback when leaving so HomePage doesn't hold a stale reference
+        if (App.ArtifactsRefreshCallback?.Target == this)
+            App.ArtifactsRefreshCallback = null;
+    }
+
     private void ArtifactsPage_Loaded(object sender, RoutedEventArgs e)
     {
         RefreshArtifacts();
     }
 
-    public void RefreshArtifacts()
+    /// <summary>
+    /// Refreshes artifacts from in-memory messages (no disk I/O).
+    /// Called from OnNavigatedTo and also from HomePage.OnDone().
+    /// </summary>
+    public void RefreshArtifacts(List<ChatMessage>? messages = null)
     {
         ArtifactsPanel.Children.Clear();
 
-        // Collect all code blocks from all model messages in current chat
         var allBlocks = new List<(string Lang, string Code, string Preview, string Source)>();
 
-        // Read from active chat file
-        try
+        if (messages != null)
         {
-            if (System.IO.File.Exists(ConfigManager.ActiveChatFile))
+            // Use in-memory messages directly (fast path)
+            int msgIndex = 0;
+            foreach (var msg in messages)
             {
-                var json = System.IO.File.ReadAllText(ConfigManager.ActiveChatFile);
-                var msgs = JsonConvert.DeserializeObject<List<ChatMessage>>(json);
-                if (msgs != null)
+                if (msg.Role == "model" && !string.IsNullOrEmpty(msg.Content))
                 {
-                    int msgIndex = 0;
-                    foreach (var msg in msgs)
+                    var blocks = MarkdownRenderer.ExtractCodeBlocks(msg.Content);
+                    foreach (var (lang, code, preview) in blocks)
+                        allBlocks.Add((lang, code, preview, $"Message #{msgIndex + 1}"));
+                }
+                msgIndex++;
+            }
+        }
+        else
+        {
+            // Fallback: read from disk
+            try
+            {
+                if (System.IO.File.Exists(ConfigManager.ActiveChatFile))
+                {
+                    var json = System.IO.File.ReadAllText(ConfigManager.ActiveChatFile);
+                    var msgs = JsonConvert.DeserializeObject<List<ChatMessage>>(json);
+                    if (msgs != null)
                     {
-                        if (msg.Role == "model" && !string.IsNullOrEmpty(msg.Content))
+                        int msgIndex = 0;
+                        foreach (var msg in msgs)
                         {
-                            var blocks = MarkdownRenderer.ExtractCodeBlocks(msg.Content);
-                            foreach (var (lang, code, preview) in blocks)
+                            if (msg.Role == "model" && !string.IsNullOrEmpty(msg.Content))
                             {
-                                allBlocks.Add((lang, code, preview, $"Message #{msgIndex + 1}"));
+                                var blocks = MarkdownRenderer.ExtractCodeBlocks(msg.Content);
+                                foreach (var (lang, code, preview) in blocks)
+                                    allBlocks.Add((lang, code, preview, $"Message #{msgIndex + 1}"));
                             }
+                            msgIndex++;
                         }
-                        msgIndex++;
                     }
                 }
             }
+            catch { }
         }
-        catch { }
 
         ArtifactCount.Text = allBlocks.Count > 0 ? $"{allBlocks.Count} artifact(s)" : "";
 
@@ -85,7 +123,7 @@ public sealed partial class ArtifactsPage : Page
 
         var mainStack = new StackPanel();
 
-        // Header
+        // ── Header ──
         var headerGrid = new Grid
         {
             Padding = new Thickness(12, 8, 12, 8),
@@ -98,7 +136,7 @@ public sealed partial class ArtifactsPage : Page
 
         var titleLabel = new TextBlock
         {
-            Text = $"{source} — {language.ToUpperInvariant()}",
+            Text = $"{source} — {(string.IsNullOrEmpty(language) ? "code" : language.ToUpperInvariant())}",
             FontSize = 13,
             FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
             Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(
@@ -138,44 +176,81 @@ public sealed partial class ArtifactsPage : Page
         };
         headerGrid.Children.Add(copyBtn);
 
+        // Expand/Collapse toggle button
+        var expandBtn = new Button
+        {
+            Content = new FontIcon { Glyph = "\uE70D", FontSize = 12 },
+            Padding = new Thickness(6, 4, 6, 4),
+            CornerRadius = new CornerRadius(4),
+            Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(
+                Windows.UI.Color.FromArgb(255, 60, 60, 60)),
+            Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(
+                Windows.UI.Color.FromArgb(255, 180, 180, 180)),
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(4, 0, 0, 0),
+            Tag = "collapsed",
+        };
+        Grid.SetColumn(expandBtn, 2);
+        headerGrid.Children.Add(expandBtn);
+
         mainStack.Children.Add(headerGrid);
 
-        // Preview line
-        if (!string.IsNullOrEmpty(preview))
+        // ── Separator line between header and code ──
+        var separator = new Border
         {
-            var previewBlock = new TextBlock
-            {
-                Text = preview,
-                FontSize = 12,
-                FontFamily = new Microsoft.UI.Xaml.Media.FontFamily("Cascadia Code"),
-                Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(
-                    Windows.UI.Color.FromArgb(255, 140, 140, 140)),
-                Padding = new Thickness(12, 4, 12, 4),
-                TextTrimming = TextTrimming.CharacterEllipsis,
-                MaxLines = 1,
-            };
-            mainStack.Children.Add(previewBlock);
-        }
+            Height = 1,
+            Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(
+                Windows.UI.Color.FromArgb(255, 55, 55, 55)),
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+        };
+        mainStack.Children.Add(separator);
 
-        // Code content (collapsible)
-        var codeText = new TextBox
+        // ── Syntax-highlighted code via RichEditBox (scrollable, selectable, full code) ──
+        var codeBox = new RichEditBox
         {
-            Text = code,
             IsReadOnly = true,
             TextWrapping = TextWrapping.Wrap,
-            AcceptsReturn = true,
             FontFamily = new Microsoft.UI.Xaml.Media.FontFamily("Cascadia Code"),
-            FontSize = 12,
+            FontSize = 13,
             Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(
                 Windows.UI.Color.FromArgb(255, 25, 25, 25)),
             Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(
-                Windows.UI.Color.FromArgb(255, 200, 200, 200)),
+                Windows.UI.Color.FromArgb(255, 212, 212, 212)),
             BorderThickness = new Thickness(0),
             Padding = new Thickness(12, 8, 12, 12),
-            MaxHeight = 300,
-            Margin = new Thickness(0),
+            MinHeight = 60,
+            MaxHeight = 400,
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            IsTextSelectionEnabled = true,
         };
-        mainStack.Children.Add(codeText);
+
+        // Apply syntax highlighting
+        codeBox.TextDocument.SetText(Windows.UI.Text.TextSetOptions.None, code);
+        SyntaxHighlighter.ApplyHighlighting(codeBox.TextDocument, language);
+
+        mainStack.Children.Add(codeBox);
+
+        // ── Expand/Collapse toggle ──
+        expandBtn.Click += (s, e) =>
+        {
+            if (expandBtn.Tag is string state)
+            {
+                if (state == "collapsed")
+                {
+                    codeBox.MaxHeight = double.MaxValue; // fully expanded
+                    var glyphIcon = (FontIcon)((Button)s).Content;
+                    glyphIcon.Glyph = "\uE70E"; // collapse chevron
+                    expandBtn.Tag = "expanded";
+                }
+                else
+                {
+                    codeBox.MaxHeight = 400;
+                    var glyphIcon = (FontIcon)((Button)s).Content;
+                    glyphIcon.Glyph = "\uE70D"; // expand chevron
+                    expandBtn.Tag = "collapsed";
+                }
+            }
+        };
 
         card.Child = mainStack;
         return card;

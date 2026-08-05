@@ -1,5 +1,6 @@
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Documents;
 
 namespace AdvaBrowser;
 
@@ -13,6 +14,7 @@ public sealed partial class HomePage : Page
     public HomePage()
     {
         this.InitializeComponent();
+        LoadChatHistory();
         UpdateVisibility();
     }
 
@@ -20,6 +22,21 @@ public sealed partial class HomePage : Page
     {
         WelcomePanel.Visibility = _messages.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
         ChatListView.Visibility = _messages.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    /// <summary>
+    /// Loaded handler for the RichTextBlock in model response template.
+    /// Renders markdown content into the RichTextBlock.
+    /// </summary>
+    private void ModelRichText_Loaded(object sender, RoutedEventArgs e)
+    {
+        if (sender is RichTextBlock rtb && rtb.DataContext is ChatMessage msg)
+        {
+            rtb.Inlines.Clear();
+            var inlines = MarkdownRenderer.ParseInlines(msg.Content ?? "");
+            foreach (var inline in inlines)
+                rtb.Inlines.Add(inline);
+        }
     }
 
     private void InputTextBox_KeyDown(object sender, Microsoft.UI.Xaml.Input.KeyRoutedEventArgs e)
@@ -43,6 +60,7 @@ public sealed partial class HomePage : Page
     {
         _messages.Clear();
         _streamingMsg = null;
+        SaveChatHistory();
         Bind();
     }
 
@@ -51,6 +69,41 @@ public sealed partial class HomePage : Page
         ExecuteClearChat();
         MemoryManager.ClearExecutionLog();
         MemoryManager.LogMessage("system", "New chat started");
+    }
+
+    // Chat history persistence
+    private void LoadChatHistory()
+    {
+        try
+        {
+            if (File.Exists(ConfigManager.ActiveChatFile))
+            {
+                var json = File.ReadAllText(ConfigManager.ActiveChatFile);
+                var msgs = JsonConvert.DeserializeObject<List<ChatMessage>>(json);
+                if (msgs != null)
+                {
+                    _messages.AddRange(msgs);
+                    CrashLogger.Log("INFO", $"Loaded {_messages.Count} messages from chat history");
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            CrashLogger.Log("WARN", $"Failed to load chat history: {ex.Message}");
+        }
+    }
+
+    private void SaveChatHistory()
+    {
+        try
+        {
+            var json = JsonConvert.SerializeObject(_messages, Formatting.Indented);
+            File.WriteAllText(ConfigManager.ActiveChatFile, json);
+        }
+        catch (Exception ex)
+        {
+            CrashLogger.Log("WARN", $"Failed to save chat history: {ex.Message}");
+        }
     }
 
     public async void ExecuteUndo()
@@ -71,14 +124,9 @@ public sealed partial class HomePage : Page
     private async Task<bool> ShowApiKeyDialog()
     {
         InputTextBox.IsEnabled = false;
-
         var pwd = new PasswordBox { PlaceholderText = "Enter Gemini API Key..." };
         var panel = new StackPanel { Spacing = 8 };
-        panel.Children.Add(new TextBlock
-        {
-            Text = "Enter your Gemini API key to start chatting.",
-            Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.White)
-        });
+        panel.Children.Add(new TextBlock { Text = "Enter your Gemini API key." });
         panel.Children.Add(pwd);
 
         var dlg = new ContentDialog
@@ -102,13 +150,12 @@ public sealed partial class HomePage : Page
         return false;
     }
 
-    // Fade animation for Send button -> Spinner
+    // Fade animations
     private async Task ShowSendSpinner()
     {
         SendProgressRing.Visibility = Visibility.Visible;
         SendProgressRing.IsActive = true;
         SendProgressRing.Opacity = 0;
-
         for (int i = 5; i >= 0; i--)
         {
             SendButton.Opacity = i / 5.0;
@@ -122,7 +169,6 @@ public sealed partial class HomePage : Page
     {
         SendButton.Visibility = Visibility.Visible;
         SendButton.Opacity = 0;
-
         for (int i = 0; i <= 5; i++)
         {
             SendButton.Opacity = i / 5.0;
@@ -137,8 +183,6 @@ public sealed partial class HomePage : Page
     {
         var text = InputTextBox.Text?.Trim();
         if (string.IsNullOrEmpty(text)) return;
-
-        CrashLogger.Log("INFO", $"SendMessageAsync: textLen={text.Length}");
 
         if (!ConfigManager.HasApiKey)
         {
@@ -162,12 +206,14 @@ public sealed partial class HomePage : Page
         _service.OnToolCallCompleted -= OnToolDone;
         _service.OnError -= OnErr;
         _service.OnComplete -= OnDone;
+        _service.OnModelSwitched -= OnModelSwitch;
 
         _service.OnTokenReceived += OnToken;
         _service.OnToolCallStarted += OnToolStart;
         _service.OnToolCallCompleted += OnToolDone;
         _service.OnError += OnErr;
         _service.OnComplete += OnDone;
+        _service.OnModelSwitched += OnModelSwitch;
 
         _cts = new();
         try
@@ -211,6 +257,14 @@ public sealed partial class HomePage : Page
             }
             Bind();
             ScrollBottom();
+        });
+    }
+
+    private void OnModelSwitch(string model)
+    {
+        DispatcherQueue.TryEnqueue(() =>
+        {
+            StatusText.Text = $"Switched to {model}";
         });
     }
 
@@ -274,6 +328,7 @@ public sealed partial class HomePage : Page
                 MemoryManager.LogMessage("model", _streamingMsg.Content, _streamingMsg.ModelName);
                 _streamingMsg = null;
             }
+            SaveChatHistory();
             Bind();
             ScrollBottom();
         });

@@ -11,7 +11,7 @@
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
-        <!-- Top Bar - minimal: title + status only -->
+        <!-- Top Bar -->
         <Grid Grid.Row="0" Padding="16,12,16,8" Background="Transparent">
             <StackPanel Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
                 <TextBlock Text="Chat" FontSize="22" FontWeight="Bold"
@@ -42,29 +42,31 @@
                 <DataTemplate x:DataType="local:ChatMessage">
                     <Grid Padding="4,2">
 
-                        <!-- User message bubble (right-aligned) -->
-                        <Border Background="{ThemeResource AccentFillColorDefaultBrush}"
+                        <!-- User message bubble (right-aligned, black text) -->
+                        <Border x:Name="UserBubble"
+                                Background="{ThemeResource AccentFillColorDefaultBrush}"
                                 CornerRadius="12,12,4,12" Padding="14,10"
                                 HorizontalAlignment="Right" MaxWidth="700" Margin="60,0,0,0">
                             <Border.Visibility>
                                 <Binding Path="Role" Converter="{StaticResource RoleToVisibilityConverter}" ConverterParameter="user"/>
                             </Border.Visibility>
                             <TextBlock Text="{x:Bind Content}" TextWrapping="Wrap" FontSize="15"
-                                       Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+                                       Foreground="{ThemeResource TextFillColorOnAccentFillColorDefaultBrush}"/>
                         </Border>
 
-                        <!-- Model response (left-aligned, NO bubble) -->
+                        <!-- Model response (left-aligned, NO bubble, with Markdown) -->
                         <StackPanel HorizontalAlignment="Left" MaxWidth="700" Margin="0,0,60,0">
                             <StackPanel.Visibility>
                                 <Binding Path="Role" Converter="{StaticResource RoleToVisibilityConverter}" ConverterParameter="model"/>
                             </StackPanel.Visibility>
                             <TextBlock Text="{x:Bind ModelName}" FontSize="11"
                                        Foreground="{ThemeResource SystemFillColorSuccessBrush}" Opacity="0.7"/>
-                            <TextBlock Text="{x:Bind Content}" TextWrapping="Wrap" FontSize="15"
-                                       Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+                            <RichTextBlock x:Name="ModelRichText" TextWrapping="Wrap" FontSize="15"
+                                           Foreground="{ThemeResource TextFillColorPrimaryBrush}"
+                                           Loaded="ModelRichText_Loaded"/>
                         </StackPanel>
 
-                        <!-- Tool call card (left-aligned, with progress/status) -->
+                        <!-- Tool call card -->
                         <Border Background="{ThemeResource CardBackgroundFillColorSecondaryBrush}"
                                 BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
                                 BorderThickness="1"
@@ -74,21 +76,18 @@
                                 <Binding Path="IsToolCall" Converter="{StaticResource BoolToVisibilityConverter}"/>
                             </Border.Visibility>
                             <StackPanel Orientation="Horizontal" Spacing="10">
-                                <!-- Running: spinner -->
                                 <ProgressRing Width="16" Height="16"
                                               Foreground="{ThemeResource AccentFillColorDefaultBrush}">
                                     <ProgressRing.Visibility>
                                         <Binding Path="IsToolRunning" Converter="{StaticResource BoolToVisibilityConverter}"/>
                                     </ProgressRing.Visibility>
                                 </ProgressRing>
-                                <!-- Done: checkmark -->
                                 <FontIcon Glyph="&#xE73E;" FontSize="16"
                                           Foreground="{ThemeResource SystemFillColorSuccessBrush}">
                                     <FontIcon.Visibility>
                                         <Binding Path="IsToolDone" Converter="{StaticResource BoolToVisibilityConverter}"/>
                                     </FontIcon.Visibility>
                                 </FontIcon>
-                                <!-- Failed: X mark -->
                                 <FontIcon Glyph="&#xE711;" FontSize="16"
                                           Foreground="{ThemeResource SystemFillColorCriticalBrush}">
                                     <FontIcon.Visibility>
@@ -147,7 +146,6 @@
                              MaxHeight="150" MinHeight="44"
                              KeyDown="InputTextBox_KeyDown" FontSize="15"
                              Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"/>
-                    <!-- Send button + spinner overlay in same cell -->
                     <Grid Grid.Column="1" MinWidth="100" MinHeight="44" VerticalAlignment="Bottom">
                         <Button x:Name="SendButton"
                                 Click="SendButton_Click"

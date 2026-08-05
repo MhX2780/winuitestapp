@@ -13,8 +13,6 @@ public partial class App : Application
     {
         this.InitializeComponent();
         this.UnhandledException += App_UnhandledException;
-
-        // Install file-based crash logger (AppDomain + TaskScheduler + native)
         CrashLogger.Initialize();
     }
 
@@ -24,10 +22,14 @@ public partial class App : Application
 
         try
         {
+            // Show loading screen first
             var window = new MainWindow();
             window.SystemBackdrop = new DesktopAcrylicBackdrop();
             MainWindow = window;
             window.Activate();
+
+            // Navigate to loading page first, then to chat after init
+            window.NavigateToLoading();
 
             CrashLogger.Log("INFO", "MainWindow created and activated");
         }
@@ -41,14 +43,10 @@ public partial class App : Application
     private void App_UnhandledException(object sender, Microsoft.UI.Xaml.UnhandledExceptionEventArgs e)
     {
         e.Handled = true;
-
         var ex = e.Exception;
         CrashLogger.Log("ERROR", $"WinUI UnhandledException: {ex.GetType().Name}: {ex.Message}\n{ex.StackTrace}");
         CrashLogger.WriteCrash($"WinUI Unhandled: {ex.GetType().Name}: {ex.Message}\n{ex.StackTrace}");
 
-        System.Diagnostics.Debug.WriteLine($"[UGA UNHANDLED] {ex.Message}\n{ex.StackTrace}");
-
-        // Show error dialog on the main window's thread if possible
         try
         {
             MainWindow?.DispatcherQueue.TryEnqueue(() =>

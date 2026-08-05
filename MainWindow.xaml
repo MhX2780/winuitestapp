@@ -46,6 +46,11 @@
                     <SymbolIcon Symbol="Add" />
                 </NavigationViewItem.Icon>
             </NavigationViewItem>
+            <NavigationViewItem Tag="theme" ToolTipService.ToolTip="Toggle Light/Dark Mode">
+                <NavigationViewItem.Icon>
+                    <SymbolIcon Symbol="Highlight" />
+                </NavigationViewItem.Icon>
+            </NavigationViewItem>
             <NavigationViewItem Content="Settings" Tag="settings" ToolTipService.ToolTip="Settings">
                 <NavigationViewItem.Icon>
                     <SymbolIcon Symbol="Setting" />

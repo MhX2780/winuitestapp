@@ -7,14 +7,15 @@ namespace AdvaBrowser;
 
 public sealed partial class MainWindow : Window
 {
+    private bool _isDark = true;
+
     public MainWindow()
     {
         this.InitializeComponent();
 
-        // Extended title bar
         AppWindow.TitleBar.ExtendsContentIntoTitleBar = true;
 
-        // Caption button colors for acrylic backdrop
+        // Caption button colors
         AppWindow.TitleBar.ButtonBackgroundColor = Windows.UI.Color.FromArgb(0, 0, 0, 0);
         AppWindow.TitleBar.ButtonForegroundColor = Windows.UI.Color.FromArgb(255, 255, 255, 255);
         AppWindow.TitleBar.ButtonInactiveBackgroundColor = Windows.UI.Color.FromArgb(0, 0, 0, 0);
@@ -25,15 +26,12 @@ public sealed partial class MainWindow : Window
         AppWindow.TitleBar.ButtonPressedForegroundColor = Windows.UI.Color.FromArgb(255, 255, 255, 255);
         AppWindow.TitleBar.ButtonInactiveForegroundColor = Windows.UI.Color.FromArgb(128, 255, 255, 255);
 
-        // Window size
         this.AppWindow.MoveAndResize(new Windows.Graphics.RectInt32(0, 0, 1200, 800));
         this.AppWindow.Title = "UGA";
 
-        // Taskbar progress
         var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
         TaskbarProgress.Initialize(hwnd);
 
-        // Custom pane header as drag region
         RootNav.PaneHeader = new Grid
         {
             Height = 48,
@@ -51,18 +49,32 @@ public sealed partial class MainWindow : Window
         };
     }
 
+    /// <summary>
+    /// Shows loading screen first, then navigates to chat after init.
+    /// </summary>
+    public void NavigateToLoading()
+    {
+        ContentFrame.Navigate(typeof(LoadingPage));
+
+        // Simulate init delay then navigate to chat
+        DispatcherQueue.TryEnqueue(async () =>
+        {
+            await System.Threading.Tasks.Task.Delay(800);
+            ContentFrame.Navigate(typeof(HomePage));
+        });
+    }
+
     private void RootNav_Loaded(object sender, RoutedEventArgs e)
     {
         RootNav.IsPaneOpen = false;
         RootNav.SelectedItem = RootNav.MenuItems[0];
-        Navigate("home");
     }
 
     private void RootNav_SelectionChanged(NavigationView sender, NavigationViewSelectionChangedEventArgs args)
     {
         if (args.SelectedItemContainer is NavigationViewItem item && item.Tag is string tag)
         {
-            if (tag is "undo" or "clear" or "newchat")
+            if (tag is "undo" or "clear" or "newchat" or "theme")
             {
                 _ = HandleNavActionAsync(tag);
                 RootNav.SelectedItem = RootNav.MenuItems[0];
@@ -75,6 +87,12 @@ public sealed partial class MainWindow : Window
     private async System.Threading.Tasks.Task HandleNavActionAsync(string action)
     {
         RootNav.IsPaneOpen = false;
+
+        if (action == "theme")
+        {
+            ToggleTheme();
+            return;
+        }
 
         if (ContentFrame.Content is not HomePage page) return;
 
@@ -89,12 +107,7 @@ public sealed partial class MainWindow : Window
         var dlg = new ContentDialog
         {
             Title = title,
-            Content = new TextBlock
-            {
-                Text = message,
-                TextWrapping = TextWrapping.Wrap,
-                Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.White)
-            },
+            Content = new TextBlock { Text = message, TextWrapping = TextWrapping.Wrap },
             PrimaryButtonText = "Confirm",
             CloseButtonText = "Cancel",
             DefaultButton = ContentDialogButton.Primary,
@@ -109,6 +122,35 @@ public sealed partial class MainWindow : Window
                 case "clear": page.ExecuteClearChat(); break;
                 case "newchat": page.ExecuteNewChat(); break;
             }
+        }
+    }
+
+    private void ToggleTheme()
+    {
+        _isDark = !_isDark;
+        if (_isDark)
+        {
+            RootNav.RequestedTheme = ElementTheme.Dark;
+            UpdateCaptionColors(dark: true);
+        }
+        else
+        {
+            RootNav.RequestedTheme = ElementTheme.Light;
+            UpdateCaptionColors(dark: false);
+        }
+    }
+
+    private void UpdateCaptionColors(bool dark)
+    {
+        if (dark)
+        {
+            AppWindow.TitleBar.ButtonForegroundColor = Windows.UI.Color.FromArgb(255, 255, 255, 255);
+            AppWindow.TitleBar.ButtonInactiveForegroundColor = Windows.UI.Color.FromArgb(128, 255, 255, 255);
+        }
+        else
+        {
+            AppWindow.TitleBar.ButtonForegroundColor = Windows.UI.Color.FromArgb(255, 0, 0, 0);
+            AppWindow.TitleBar.ButtonInactiveForegroundColor = Windows.UI.Color.FromArgb(128, 0, 0, 0);
         }
     }
 

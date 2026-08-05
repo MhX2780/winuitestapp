@@ -22,6 +22,8 @@ public static class ConfigManager
     public static readonly string SessionLogFile = Path.Combine(MemoryDir, "session_log.jsonl");
     public static readonly string StatsFile = Path.Combine(MemoryDir, "usage_stats.json");
     public static readonly string ExecutionLogFile = Path.Combine(MemoryDir, "execution_log.jsonl");
+    public static readonly string ChatHistoryDir = Path.Combine(BaseDir, "chat_history");
+    public static readonly string ActiveChatFile = Path.Combine(ChatHistoryDir, "_active.json");
     public static readonly int ExecutionLogContextEntries = 15;
 
     // Settings
@@ -113,6 +115,7 @@ public static class ConfigManager
         Directory.CreateDirectory(BaseDir);
         Directory.CreateDirectory(MemoryDir);
         Directory.CreateDirectory(WorkspaceDir);
+        Directory.CreateDirectory(ChatHistoryDir);
         LoadSettings();
     }
 

@@ -115,7 +115,7 @@ jobs:
         }
 
     - name: Create Release (single EXE, no zip)
-      if: steps.findexe.outputs.exe_found == 'true' && github.event_name == 'push'
+      if: steps.findexe.outputs.exe_found == 'true'
       shell: pwsh
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -133,7 +133,7 @@ jobs:
         Write-Host "RELEASE: $($r.html_url)"
 
     - name: Create Release (fallback folder zip)
-      if: steps.findexe.outputs.exe_found != 'true' && steps.findexe2.outputs.exe_found == 'true' && github.event_name == 'push'
+      if: steps.findexe.outputs.exe_found != 'true' && steps.findexe2.outputs.exe_found == 'true'
       shell: pwsh
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

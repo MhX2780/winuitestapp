@@ -2,6 +2,7 @@ using Microsoft.UI;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using System.Runtime.InteropServices;
 
 namespace AdvaBrowser;
 
@@ -9,6 +10,18 @@ public sealed partial class MainWindow : Window
 {
     private const int WINDOW_WIDTH = 1200;
     private const int WINDOW_HEIGHT = 800;
+
+    [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    private static extern IntPtr SendMessage(IntPtr hWnd, uint Msg, IntPtr wParam, IntPtr lParam);
+
+    [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    private static extern IntPtr LoadImage(IntPtr hInst, string lpszName, uint uType, int cxDesired, int cyDesired, uint fuLoad);
+
+    private const uint WM_SETICON = 0x0080;
+    private const uint IMAGE_ICON = 1;
+    private const uint LR_LOADFROMFILE = 0x00000010;
+    private const int ICON_SMALL = 0;
+    private const int ICON_BIG = 1;
 
     public MainWindow()
     {
@@ -35,6 +48,9 @@ public sealed partial class MainWindow : Window
 
         var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
         TaskbarProgress.Initialize(hwnd);
+
+        // Set window icon from app.ico
+        SetWindowIcon(hwnd);
 
         RootNav.PaneHeader = new Grid
         {
@@ -127,6 +143,27 @@ public sealed partial class MainWindow : Window
             AppWindow.TitleBar.ButtonPressedBackgroundColor = Windows.UI.Color.FromArgb(80, 0, 0, 0);
             AppWindow.TitleBar.ButtonPressedForegroundColor = Windows.UI.Color.FromArgb(255, 0, 0, 0);
         }
+    }
+
+    /// <summary>
+    /// Sets the window icon (taskbar + title bar) from app.ico next to the EXE.
+    /// </summary>
+    private static void SetWindowIcon(IntPtr hwnd)
+    {
+        try
+        {
+            var exeDir = AppContext.BaseDirectory;
+            var icoPath = Path.Combine(exeDir, "app.ico");
+            if (!File.Exists(icoPath)) return;
+
+            IntPtr hIconBig = LoadImage(IntPtr.Zero, icoPath, IMAGE_ICON, 0, 0, LR_LOADFROMFILE);
+            if (hIconBig != IntPtr.Zero)
+            {
+                SendMessage(hwnd, WM_SETICON, (IntPtr)ICON_BIG, hIconBig);
+                SendMessage(hwnd, WM_SETICON, (IntPtr)ICON_SMALL, hIconBig);
+            }
+        }
+        catch { /* non-critical */ }
     }
 
     /// <summary>

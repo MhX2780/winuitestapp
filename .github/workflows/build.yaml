@@ -41,8 +41,52 @@ jobs:
         Write-Host '=== ERRORS ==='
         Select-String -Path build-log.txt -Pattern 'error ' | Select-Object -First 50 | ForEach-Object { Write-Host $_.Line }
 
-    - name: Find EXE
+    - name: Publish self-contained single-file
+      id: publish
+      if: steps.build.outcome == 'success'
+      shell: pwsh
+      run: |- 
+        dotnet publish AdvaBrowser.csproj -c Release -r win-x64 `
+          --self-contained true `
+          -p:PublishSingleFile=true `
+          -p:IncludeNativeLibrariesForSelfExtract=true `
+          -p:EnableCompressionInSingleFile=true `
+          -p:IncludeAllContentForSelfExtract=true `
+          -p:PublishTrimmed=false `
+          -p:WindowsPackageType=None `
+          -p:WindowsAppSDKSelfContained=true
+        Write-Host "PUBLISH EXIT CODE: $LASTEXITCODE"
+      continue-on-error: true
+
+    - name: Find published EXE
       id: findexe
+      if: steps.publish.outcome == 'success'
+      shell: pwsh
+      run: |- 
+        $exe = Get-ChildItem -Path '.' -Recurse -Filter 'AdvaBrowser.exe' -ErrorAction SilentlyContinue |
+          Where-Object { $_.FullName -like '*bin*Release*publish*' } |
+          Select-Object -First 1
+        if ($exe) {
+          echo "exe_found=true" >> $env:GITHUB_OUTPUT
+          echo "exe_dir=$($exe.DirectoryName)" >> $env:GITHUB_OUTPUT
+          echo "exe_path=$($exe.FullName)" >> $env:GITHUB_OUTPUT
+          $size = [math]::Round(($exe.Length / 1MB), 2)
+          Write-Host "PUBLISHED EXE: $($exe.FullName) ($size MB)"
+        } else {
+          echo "exe_found=false" >> $env:GITHUB_OUTPUT
+          Write-Host "Published EXE not found"
+        }
+
+    - name: Copy icon next to EXE
+      if: steps.findexe.outputs.exe_found == 'true'
+      shell: pwsh
+      run: |-
+        Copy-Item -Path "app.ico" -Destination "${{ steps.findexe.outputs.exe_dir }}\app.ico" -Force
+        Write-Host "Copied app.ico to publish dir"
+
+    - name: Find fallback EXE (non-publish build)
+      id: findexe2
+      if: steps.findexe.outputs.exe_found != 'true' && steps.build.outcome == 'success'
       shell: pwsh
       run: |- 
         $exe = Get-ChildItem -Path '.' -Recurse -Filter 'AdvaBrowser.exe' -ErrorAction SilentlyContinue |
@@ -51,23 +95,47 @@ jobs:
         if ($exe) {
           echo "exe_found=true" >> $env:GITHUB_OUTPUT
           echo "exe_dir=$($exe.DirectoryName)" >> $env:GITHUB_OUTPUT
-          Write-Host "EXE: $($exe.FullName)"
+          echo "exe_path=$($exe.FullName)" >> $env:GITHUB_OUTPUT
+          Write-Host "FALLBACK EXE: $($exe.FullName)"
         } else {
           echo "exe_found=false" >> $env:GITHUB_OUTPUT
-          Write-Host "EXE not found under bin/Release (any depth)"
         }
 
-    - name: Create Release
+    - name: Create Release (single-file)
       if: steps.findexe.outputs.exe_found == 'true' && github.event_name == 'push'
       shell: pwsh
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |- 
         $tag = "v1.0.0-$(Get-Date -Format 'yyyyMMdd-HHmmss')"
-        $dir = "${{ steps.findexe.outputs.exe_dir }}"
+        $exePath = "${{ steps.findexe.outputs.exe_path }}"
+        $icoPath = Join-Path "${{ steps.findexe.outputs.exe_dir }}" "app.ico"
+        $zip = "AdvaBrowser-$tag.zip"
+        $tempDir = Join-Path $env:TEMP "AdvaBrowserRelease"
+        New-Item -ItemType Directory -Force -Path $tempDir | Out-Null
+        Copy-Item -Path $exePath -Destination $tempDir -Force
+        if (Test-Path $icoPath) { Copy-Item -Path $icoPath -Destination $tempDir -Force }
+        Compress-Archive -Path "$tempDir\*" -DestinationPath $zip -Force
+        $size = [math]::Round(((Get-Item $zip).Length / 1MB), 2)
+        Write-Host "ZIP: $zip ($size MB)"
+        $body = @{ tag_name=$tag; target_commitish=$env:GITHUB_SHA; name="Release $tag"; body="AdvaBrowser $tag - Self-contained single-file release ($size MB)`n`nExtract the zip and run AdvaBrowser.exe"; draft=$false; prerelease=$false } | ConvertTo-Json -Compress
+        $h = @{ "Authorization"="token $env:GITHUB_TOKEN"; "Accept"="application/vnd.github+json" }
+        $r = Invoke-RestMethod -Uri "$env:GITHUB_API_URL/repos/$env:GITHUB_REPOSITORY/releases" -Method Post -Headers $h -Body $body -ContentType 'application/json'
+        $url = $r.upload_url -replace '\{\?name,label\}', ''
+        Invoke-RestMethod -Uri "${url}?name=$zip" -Method Post -Headers $h -Body ([IO.File]::ReadAllBytes("$PWD\$zip")) -ContentType 'application/zip' | Out-Null
+        Write-Host "RELEASE: $($r.html_url)"
+
+    - name: Create Release (fallback, folder zip)
+      if: steps.findexe.outputs.exe_found != 'true' && steps.findexe2.outputs.exe_found == 'true' && github.event_name == 'push'
+      shell: pwsh
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |- 
+        $tag = "v1.0.0-$(Get-Date -Format 'yyyyMMdd-HHmmss')"
+        $dir = "${{ steps.findexe2.outputs.exe_dir }}"
         $zip = "AdvaBrowser-$tag.zip"
         Compress-Archive -Path "$dir\*" -DestinationPath $zip
-        $body = @{ tag_name=$tag; target_commitish=$env:GITHUB_SHA; name="Release $tag"; body="AdvaBrowser $tag"; draft=$false; prerelease=$false } | ConvertTo-Json -Compress
+        $body = @{ tag_name=$tag; target_commitish=$env:GITHUB_SHA; name="Release $tag"; body="AdvaBrowser $tag - Full folder release"; draft=$false; prerelease=$false } | ConvertTo-Json -Compress
         $h = @{ "Authorization"="token $env:GITHUB_TOKEN"; "Accept"="application/vnd.github+json" }
         $r = Invoke-RestMethod -Uri "$env:GITHUB_API_URL/repos/$env:GITHUB_REPOSITORY/releases" -Method Post -Headers $h -Body $body -ContentType 'application/json'
         $url = $r.upload_url -replace '\{\?name,label\}', ''

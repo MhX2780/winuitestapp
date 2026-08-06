@@ -76,7 +76,7 @@ public sealed partial class SettingsPage : Page
             SetThemeCombo(s.ThemeMode);
 
             _isLoadingUI = false;
-            _ = LoadModelsAsync();
+            LoadModelsAsync();
         }
         catch (Exception ex)
         {

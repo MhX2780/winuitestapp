@@ -17,12 +17,21 @@ public sealed partial class MainWindow : Window
         AppWindow.TitleBar.ExtendsContentIntoTitleBar = true;
         this.AppWindow.Title = "UGA";
 
-        // Start maximized using AppWindowPresenter
-        var presenter = AppWindow.Presenter;
-        if (presenter is OverlappedPresenter overlapped)
+        // Start maximized using DisplayArea
+        try
         {
-            overlapped.State = OverlappedPresenterState.Maximized;
+            var displayArea = Microsoft.UI.Windowing.DisplayArea.GetFromWindowId(
+                AppWindow.Id, Microsoft.UI.Windowing.DisplayAreaFallback.Primary);
+            if (displayArea != null)
+            {
+                AppWindow.MoveAndResize(new Windows.Graphics.RectInt32(
+                    displayArea.WorkArea.X,
+                    displayArea.WorkArea.Y,
+                    displayArea.WorkArea.Width,
+                    displayArea.WorkArea.Height));
+            }
         }
+        catch { /* non-critical, window will show at default size */ }
 
         var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
         TaskbarProgress.Initialize(hwnd);

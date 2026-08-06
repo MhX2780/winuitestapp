@@ -58,7 +58,7 @@ public sealed partial class HomePage : Page
         if (e.Key == Windows.System.VirtualKey.Enter)
         {
             var shiftState = Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(Windows.System.VirtualKey.Shift);
-            bool shiftHeld = (shiftState & Microsoft.UI.Input.VirtualKeyStates.Down) == Microsoft.UI.Input.VirtualKeyStates.Down;
+            bool shiftHeld = (shiftState & Windows.UI.Core.CoreVirtualKeyStates.Down) == Windows.UI.Core.CoreVirtualKeyStates.Down;
             if (!shiftHeld)
             {
                 e.Handled = true;

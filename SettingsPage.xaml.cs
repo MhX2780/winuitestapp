@@ -450,7 +450,7 @@ public sealed partial class SettingsPage : Page
         {
             items.Add(new Microsoft.UI.Xaml.Controls.BreadcrumbBarItem
             {
-                Text = entry.Name,
+                Content = entry.Name,
                 Tag = entry,
             });
         }

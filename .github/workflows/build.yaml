@@ -10,13 +10,13 @@ permissions:
 
 jobs:
   build:
-    runs-on: windows-2025
+    runs-on: windows-latest
     steps:
     - uses: actions/checkout@v4
 
     - name: Pin .NET 8
       shell: pwsh
-      run: |- 
+      run: |-
         Set-Content -Path 'global.json' -Value '{"sdk":{"version":"8.0.400","rollForward":"latestFeature"}}'
         dotnet --version
 
@@ -29,7 +29,7 @@ jobs:
     - name: Build with MSBuild
       id: build
       shell: pwsh
-      run: |- 
+      run: |-
         msbuild UGA.csproj /p:Configuration=Release /p:Platform=x64 /v:detailed 2>&1 | Tee-Object -FilePath build-log.txt
         Write-Host "BUILD EXIT CODE: $LASTEXITCODE"
       continue-on-error: true
@@ -37,7 +37,7 @@ jobs:
     - name: Extract errors
       if: steps.build.outcome == 'failure'
       shell: pwsh
-      run: |- 
+      run: |-
         Write-Host '=== ERRORS ==='
         Select-String -Path build-log.txt -Pattern 'error ' | Select-Object -First 50 | ForEach-Object { Write-Host $_.Line }
 
@@ -45,7 +45,7 @@ jobs:
       id: publish
       if: steps.build.outcome == 'success'
       shell: pwsh
-      run: |- 
+      run: |-
         dotnet publish UGA.csproj -c Release -r win-x64 `
           --self-contained true `
           -p:PublishSingleFile=true `
@@ -68,7 +68,7 @@ jobs:
     - name: Show publish errors
       if: steps.publish.outputs.publish_ok != 'true'
       shell: pwsh
-      run: |- 
+      run: |-
         Write-Host "=== PUBLISH ERRORS ==="
         if (Test-Path "$env:RUNNER_TEMP\publish-log.txt") {
           Select-String -Path "$env:RUNNER_TEMP\publish-log.txt" -Pattern 'error ' | Select-Object -First 20 | ForEach-Object { Write-Host $_.Line }
@@ -78,7 +78,7 @@ jobs:
       id: findexe
       if: steps.publish.outputs.publish_ok == 'true'
       shell: pwsh
-      run: |- 
+      run: |-
         $exe = Get-ChildItem -Path '.' -Recurse -Filter 'UGA.exe' -ErrorAction SilentlyContinue |
           Where-Object { $_.FullName -like '*bin*Release*publish*' } |
           Select-Object -First 1
@@ -97,7 +97,7 @@ jobs:
       id: findexe2
       if: steps.findexe.outputs.exe_found != 'true' && steps.build.outcome == 'success'
       shell: pwsh
-      run: |- 
+      run: |-
         $exe = Get-ChildItem -Path '.' -Recurse -Filter 'UGA.exe' -ErrorAction SilentlyContinue |
           Where-Object { $_.FullName -like '*bin*Release*' } |
           Select-Object -First 1
@@ -115,7 +115,7 @@ jobs:
       shell: pwsh
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      run: |- 
+      run: |-
         $tag = "v1.0.0-$(Get-Date -Format 'yyyyMMdd-HHmmss')"
         $exePath = "${{ steps.findexe.outputs.exe_path }}"
         $exeName = "UGA.exe"
@@ -133,7 +133,7 @@ jobs:
       shell: pwsh
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      run: |- 
+      run: |-
         $tag = "v1.0.0-$(Get-Date -Format 'yyyyMMdd-HHmmss')"
         $exePath = "${{ steps.findexe2.outputs.exe_path }}"
         $exeName = "UGA.exe"

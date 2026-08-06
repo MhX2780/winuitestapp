@@ -24,7 +24,7 @@ public class PuterService : IDisposable
 
     public PuterService()
     {
-        _http = new HttpClient { Timeout = TimeSpan.FromSeconds(120) };
+        _http = new HttpClient { Timeout = TimeSpan.FromSeconds(10) };
         _http.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", GetToken());
     }
 

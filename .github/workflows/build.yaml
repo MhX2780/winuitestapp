@@ -93,13 +93,6 @@ jobs:
           Write-Host "Published EXE not found"
         }
 
-    - name: Copy icon next to EXE
-      if: steps.findexe.outputs.exe_found == 'true'
-      shell: pwsh
-      run: |-
-        Copy-Item -Path "app.ico" -Destination "${{ steps.findexe.outputs.exe_dir }}\app.ico" -Force
-        Write-Host "Copied app.ico to publish dir"
-
     - name: Find fallback EXE (non-publish build)
       id: findexe2
       if: steps.findexe.outputs.exe_found != 'true' && steps.build.outcome == 'success'
@@ -117,14 +110,7 @@ jobs:
           echo "exe_found=false" >> $env:GITHUB_OUTPUT
         }
 
-    - name: Copy icon next to fallback EXE
-      if: steps.findexe2.outputs.exe_found == 'true' && steps.findexe.outputs.exe_found != 'true'
-      shell: pwsh
-      run: |-
-        Copy-Item -Path "app.ico" -Destination "${{ steps.findexe2.outputs.exe_dir }}\app.ico" -Force
-        Write-Host "Copied app.ico to fallback dir"
-
-    - name: Create Release (single-file)
+    - name: Create Release (single EXE, no zip)
       if: steps.findexe.outputs.exe_found == 'true' && github.event_name == 'push'
       shell: pwsh
       env:
@@ -132,39 +118,32 @@ jobs:
       run: |- 
         $tag = "v1.0.0-$(Get-Date -Format 'yyyyMMdd-HHmmss')"
         $exePath = "${{ steps.findexe.outputs.exe_path }}"
-        $icoPath = Join-Path "${{ steps.findexe.outputs.exe_dir }}" "app.ico"
-        $zip = "AdvaBrowser-$tag.zip"
-        $tempDir = Join-Path $env:TEMP "AdvaBrowserRelease"
-        New-Item -ItemType Directory -Force -Path $tempDir | Out-Null
-        Copy-Item -Path $exePath -Destination $tempDir -Force
-        if (Test-Path $icoPath) { Copy-Item -Path $icoPath -Destination $tempDir -Force }
-        Compress-Archive -Path "$tempDir\*" -DestinationPath $zip -Force
-        $size = [math]::Round(((Get-Item $zip).Length / 1MB), 2)
-        Write-Host "ZIP: $zip ($size MB)"
-        $body = @{ tag_name=$tag; target_commitish=$env:GITHUB_SHA; name="Release $tag"; body="AdvaBrowser $tag - Self-contained single-file release ($size MB)`n`nExtract the zip and run AdvaBrowser.exe"; draft=$false; prerelease=$false } | ConvertTo-Json -Compress
+        $exeName = "AdvaBrowser.exe"
+        $size = [math]::Round(((Get-Item $exePath).Length / 1MB), 2)
+        Write-Host "UPLOAD: $exeName ($size MB)"
+        $body = @{ tag_name=$tag; target_commitish=$env:GITHUB_SHA; name="Release $tag"; body="AdvaBrowser $tag - Self-contained single EXE ($size MB)`n`nDownload AdvaBrowser.exe and run it directly. No installation needed."; draft=$false; prerelease=$false } | ConvertTo-Json -Compress
         $h = @{ "Authorization"="token $env:GITHUB_TOKEN"; "Accept"="application/vnd.github+json" }
         $r = Invoke-RestMethod -Uri "$env:GITHUB_API_URL/repos/$env:GITHUB_REPOSITORY/releases" -Method Post -Headers $h -Body $body -ContentType 'application/json'
         $url = $r.upload_url -replace '\{\?name,label\}', ''
-        Invoke-RestMethod -Uri "${url}?name=$zip" -Method Post -Headers $h -Body ([IO.File]::ReadAllBytes("$PWD\$zip")) -ContentType 'application/zip' | Out-Null
+        Invoke-RestMethod -Uri "${url}?name=$exeName" -Method Post -Headers $h -Body ([IO.File]::ReadAllBytes($exePath)) -ContentType 'application/octet-stream' | Out-Null
         Write-Host "RELEASE: $($r.html_url)"
 
-    - name: Create Release (fallback, folder zip)
+    - name: Create Release (fallback folder zip)
       if: steps.findexe.outputs.exe_found != 'true' && steps.findexe2.outputs.exe_found == 'true' && github.event_name == 'push'
       shell: pwsh
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |- 
         $tag = "v1.0.0-$(Get-Date -Format 'yyyyMMdd-HHmmss')"
-        $dir = "${{ steps.findexe2.outputs.exe_dir }}"
-        $zip = "AdvaBrowser-$tag.zip"
-        Compress-Archive -Path "$dir\*" -DestinationPath $zip
-        $size = [math]::Round(((Get-Item $zip).Length / 1MB), 2)
-        Write-Host "ZIP: $zip ($size MB)"
-        $body = @{ tag_name=$tag; target_commitish=$env:GITHUB_SHA; name="Release $tag"; body="AdvaBrowser $tag - Full folder release ($size MB)`n`nExtract the zip and run AdvaBrowser.exe"; draft=$false; prerelease=$false } | ConvertTo-Json -Compress
+        $exePath = "${{ steps.findexe2.outputs.exe_path }}"
+        $exeName = "AdvaBrowser.exe"
+        $size = [math]::Round(((Get-Item $exePath).Length / 1MB), 2)
+        Write-Host "UPLOAD (fallback): $exeName ($size MB)"
+        $body = @{ tag_name=$tag; target_commitish=$env:GITHUB_SHA; name="Release $tag"; body="AdvaBrowser $tag - Single EXE ($size MB)"; draft=$false; prerelease=$false } | ConvertTo-Json -Compress
         $h = @{ "Authorization"="token $env:GITHUB_TOKEN"; "Accept"="application/vnd.github+json" }
         $r = Invoke-RestMethod -Uri "$env:GITHUB_API_URL/repos/$env:GITHUB_REPOSITORY/releases" -Method Post -Headers $h -Body $body -ContentType 'application/json'
         $url = $r.upload_url -replace '\{\?name,label\}', ''
-        Invoke-RestMethod -Uri "${url}?name=$zip" -Method Post -Headers $h -Body ([IO.File]::ReadAllBytes("$PWD\$zip")) -ContentType 'application/zip' | Out-Null
+        Invoke-RestMethod -Uri "${url}?name=$exeName" -Method Post -Headers $h -Body ([IO.File]::ReadAllBytes($exePath)) -ContentType 'application/octet-stream' | Out-Null
         Write-Host "RELEASE: $($r.html_url)"
 
     - name: Upload logs on failure

@@ -25,7 +25,7 @@ public static class TaskbarProgress
     // ─── Win32 COM Imports ───
 
     [ComImport]
-    [Guid("56FDF342-FD6D-11d0-958A-006097C0A000")]
+    [Guid("EA1AFB91-9E28-4B86-90E9-9E9F8A5EEFAF")]
     [InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
     [ComVisible(true)]
     private interface ITaskbarList3

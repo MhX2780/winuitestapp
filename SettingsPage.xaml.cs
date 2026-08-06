@@ -17,18 +17,26 @@ public sealed partial class SettingsPage : Page
     {
         try
         {
+            // Load UI immediately (sync) so user sees settings right away
             LoadUI();
+        }
+        catch (Exception ex)
+        {
+            CrashLogger.Log("ERROR", $"SettingsPage_Loaded (LoadUI) failed: {ex.Message}");
+        }
+
+        // Hide spinner, show content — Puter models load in background
+        LoadingOverlay.Visibility = Visibility.Collapsed;
+        SettingsScroll.Visibility = Visibility.Visible;
+
+        // Load Puter models NON-BLOCKING — runs in background after page is visible
+        try
+        {
             await LoadModelsAsyncWrapped();
         }
         catch (Exception ex)
         {
-            CrashLogger.Log("ERROR", $"SettingsPage_Loaded failed: {ex.Message}");
-        }
-        finally
-        {
-            // Hide spinner, show content
-            LoadingOverlay.Visibility = Visibility.Collapsed;
-            SettingsScroll.Visibility = Visibility.Visible;
+            CrashLogger.Log("ERROR", $"SettingsPage_Loaded (LoadModels) failed: {ex.Message}");
         }
     }
 

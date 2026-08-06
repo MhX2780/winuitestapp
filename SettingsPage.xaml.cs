@@ -11,45 +11,78 @@ public sealed partial class SettingsPage : Page
     private static List<string> _puterAllModels = new();
     public SettingsPage()
     {
-        this.InitializeComponent();
+        CrashLogger.Log("INFO", "SettingsPage: constructor started");
+        try
+        {
+            this.InitializeComponent();
+            CrashLogger.Log("INFO", "SettingsPage: InitializeComponent OK");
+        }
+        catch (Exception ex)
+        {
+            CrashLogger.Log("FATAL", $"SettingsPage: InitializeComponent CRASH: {ex.GetType().Name}: {ex.Message}");
+            CrashLogger.WriteCrash($"SettingsPage InitializeComponent: {ex}");
+            throw;
+        }
         this.Loaded += SettingsPage_Loaded;
+        CrashLogger.Log("INFO", "SettingsPage: constructor done");
     }
 
     private void SettingsPage_Loaded(object sender, RoutedEventArgs e)
     {
+        CrashLogger.Log("INFO", "SettingsPage_Loaded: START");
+
         try
         {
-            // Load UI immediately (sync) so user sees settings right away
+            CrashLogger.Log("INFO", "SettingsPage_Loaded: calling LoadUI");
             LoadUI();
+            CrashLogger.Log("INFO", "SettingsPage_Loaded: LoadUI done");
         }
         catch (Exception ex)
         {
-            CrashLogger.Log("ERROR", $"SettingsPage_Loaded (LoadUI) failed: {ex.Message}");
+            CrashLogger.Log("ERROR", $"SettingsPage_Loaded (LoadUI) failed: {ex.GetType().Name}: {ex.Message}\n{ex.StackTrace}");
         }
 
-        // Hide spinner, show content
-        LoadingOverlay.Visibility = Visibility.Collapsed;
-        SettingsScroll.Visibility = Visibility.Visible;
+        try
+        {
+            LoadingOverlay.Visibility = Visibility.Collapsed;
+            SettingsScroll.Visibility = Visibility.Visible;
+        }
+        catch (Exception ex)
+        {
+            CrashLogger.Log("ERROR", $"SettingsPage_Loaded (visibility) failed: {ex.Message}");
+        }
 
-        // Load Gemini models into combos (fast, sync)
-        LoadGeminiModels();
+        try
+        {
+            CrashLogger.Log("INFO", "SettingsPage_Loaded: calling LoadGeminiModels");
+            LoadGeminiModels();
+            CrashLogger.Log("INFO", "SettingsPage_Loaded: LoadGeminiModels done");
+        }
+        catch (Exception ex)
+        {
+            CrashLogger.Log("ERROR", $"SettingsPage_Loaded (LoadGeminiModels) failed: {ex.GetType().Name}: {ex.Message}\n{ex.StackTrace}");
+        }
 
         // Load Puter models on a BACKGROUND thread — never blocks UI
         _ = System.Threading.Tasks.Task.Run(async () =>
         {
             try
             {
+                CrashLogger.Log("INFO", "LoadPuterModelsAsync: background thread started");
                 await LoadPuterModelsAsync();
+                CrashLogger.Log("INFO", "LoadPuterModelsAsync: done");
             }
             catch (Exception ex)
             {
                 CrashLogger.Log("WARN", $"Puter model load failed: {ex.Message}");
                 DispatcherQueue.TryEnqueue(() =>
                 {
-                    PuterModelsStatus.Text = "Could not fetch Puter models.";
+                    try { PuterModelsStatus.Text = "Could not fetch Puter models."; } catch { }
                 });
             }
         });
+
+        CrashLogger.Log("INFO", "SettingsPage_Loaded: END (UI thread free)");
     }
 
     private void LoadUI()

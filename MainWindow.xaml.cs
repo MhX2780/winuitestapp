@@ -260,6 +260,16 @@ public sealed partial class MainWindow : Window
         // If already showing this page, don't re-navigate
         if (ContentFrame.Content?.GetType() == targetType) return;
 
-        ContentFrame.Navigate(targetType);
+        try
+        {
+            CrashLogger.Log("INFO", $"Navigate: navigating to {targetType.Name}");
+            ContentFrame.Navigate(targetType);
+            CrashLogger.Log("INFO", $"Navigate: {targetType.Name} loaded");
+        }
+        catch (Exception ex)
+        {
+            CrashLogger.Log("FATAL", $"Navigate to {targetType.Name} CRASH: {ex.GetType().Name}: {ex.Message}\n{ex.StackTrace}");
+            CrashLogger.WriteCrash($"Navigate to {targetType.Name}: {ex}");
+        }
     }
 }

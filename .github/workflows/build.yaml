@@ -8,9 +8,6 @@ on:
 permissions:
   contents: write
 
-concurrency:
-  group: build-uga
-  cancel-in-progress: true
 
 jobs:
   build:

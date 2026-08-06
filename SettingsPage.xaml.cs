@@ -13,7 +13,7 @@ public sealed partial class SettingsPage : Page
         this.Loaded += SettingsPage_Loaded;
     }
 
-    private async void SettingsPage_Loaded(object sender, RoutedEventArgs e)
+    private void SettingsPage_Loaded(object sender, RoutedEventArgs e)
     {
         try
         {
@@ -25,19 +25,29 @@ public sealed partial class SettingsPage : Page
             CrashLogger.Log("ERROR", $"SettingsPage_Loaded (LoadUI) failed: {ex.Message}");
         }
 
-        // Hide spinner, show content — Puter models load in background
+        // Hide spinner, show content
         LoadingOverlay.Visibility = Visibility.Collapsed;
         SettingsScroll.Visibility = Visibility.Visible;
 
-        // Load Puter models NON-BLOCKING — runs in background after page is visible
-        try
+        // Load Gemini models into combos (fast, sync)
+        LoadGeminiModels();
+
+        // Load Puter models on a BACKGROUND thread — never blocks UI
+        _ = System.Threading.Tasks.Task.Run(async () =>
         {
-            await LoadModelsAsyncWrapped();
-        }
-        catch (Exception ex)
-        {
-            CrashLogger.Log("ERROR", $"SettingsPage_Loaded (LoadModels) failed: {ex.Message}");
-        }
+            try
+            {
+                await LoadPuterModelsAsync();
+            }
+            catch (Exception ex)
+            {
+                CrashLogger.Log("WARN", $"Puter model load failed: {ex.Message}");
+                DispatcherQueue.TryEnqueue(() =>
+                {
+                    PuterModelsStatus.Text = "Could not fetch Puter models.";
+                });
+            }
+        });
     }
 
     private void LoadUI()
@@ -394,21 +404,10 @@ public sealed partial class SettingsPage : Page
     }
 
     /// <summary>
-    /// Wrapper that returns Task so we can await it from SettingsPage_Loaded.
+    /// Loads Gemini default models into combos (sync, fast — no network).
     /// </summary>
-    private async System.Threading.Tasks.Task LoadModelsAsyncWrapped()
+    private void LoadGeminiModels()
     {
-        await LoadModelsAsyncCore();
-    }
-
-    private async void LoadModelsAsync()
-    {
-        await LoadModelsAsyncCore();
-    }
-
-    private async System.Threading.Tasks.Task LoadModelsAsyncCore()
-    {
-        // Load Gemini models from default chain
         var geminiModels = ConfigManager.DefaultModelChain.Select(m => m.Name).ToList();
 
         foreach (var combo in new[] { ModelCombo, ClassifierCombo, PlannerCombo, ExecutorCombo, ReviewerCombo, AddModelCombo })
@@ -427,28 +426,43 @@ public sealed partial class SettingsPage : Page
 
         // Populate BreadcrumbBar
         UpdateBreadcrumbBar();
+    }
 
-        // Load Puter models if token exists
+    /// <summary>
+    /// Fetches Puter models from network and adds them to combos.
+    /// MUST be called from a background thread (Task.Run). Uses DispatcherQueue for UI updates.
+    /// </summary>
+    private async System.Threading.Tasks.Task LoadPuterModelsAsync()
+    {
         var token = ConfigManager.LoadPuterToken();
-        if (!string.IsNullOrEmpty(token))
+        if (string.IsNullOrEmpty(token)) return;
+
+        List<string> puterModels;
+        using (var puter = new PuterService())
         {
             try
             {
-                using var puter = new PuterService();
-                List<string> puterModels;
-                try
+                puterModels = await puter.ListModelsAsync();
+            }
+            catch (Exception ex)
+            {
+                CrashLogger.Log("WARN", $"ListModelsAsync failed: {ex.Message}");
+                DispatcherQueue.TryEnqueue(() =>
                 {
-                    puterModels = await puter.ListModelsAsync();
-                }
-                catch (Exception ex)
-                {
-                    CrashLogger.Log("WARN", $"ListModelsAsync failed: {ex.Message}");
                     PuterModelsStatus.Text = "Could not fetch Puter models. Try again later.";
-                    return;
-                }
+                });
+                return;
+            }
+        }
+
+        // Dispatch all UI updates back to the UI thread
+        DispatcherQueue.TryEnqueue(() =>
+        {
+            try
+            {
                 PuterModelsStatus.Text = $"Puter: {puterModels.Count} models loaded.";
 
-                // Add Puter models to ALL model ComboBoxes (Gemini + Puter combined)
+                // Add Puter models to ALL model ComboBoxes
                 foreach (var combo in new[] { ModelCombo, ClassifierCombo, PlannerCombo, ExecutorCombo, ReviewerCombo, AddModelCombo })
                 {
                     combo.Items.Add(new ComboBoxItem
@@ -460,36 +474,34 @@ public sealed partial class SettingsPage : Page
                         combo.Items.Add(new ComboBoxItem { Content = model });
                 }
 
-                // Populate Puter-specific comboboxes (chat, vision, image gen)
-                var chatModels = puterModels.ToList();
-                foreach (var m in chatModels)
+                // Puter-specific comboboxes
+                foreach (var m in puterModels)
                     PuterModelBox.Items.Add(new ComboBoxItem { Content = m });
                 SetCombo(PuterModelBox, ConfigManager.Settings.PuterFreeChatModel);
 
-                // Vision models: filter by known vision keywords or show all
+                // Vision models
                 var visionKeywords = new[] { "vision", "vlm", "multimodal", "gpt-4o", "claude-3", "gemini" };
                 var visionModels = puterModels.Where(m =>
                     visionKeywords.Any(k => m.ToLowerInvariant().Contains(k.ToLowerInvariant()))).ToList();
-                if (visionModels.Count == 0) visionModels = puterModels; // fallback: show all
+                if (visionModels.Count == 0) visionModels = puterModels;
                 foreach (var m in visionModels)
                     PuterVisionBox.Items.Add(new ComboBoxItem { Content = m });
                 SetCombo(PuterVisionBox, ConfigManager.Settings.PuterVisionModel);
 
-                // Image gen models: filter by known keywords
+                // Image gen models
                 var imgKeywords = new[] { "dall-e", "image", "img", "flux", "stable", "sd", "paint", "draw" };
                 var imgModels = puterModels.Where(m =>
                     imgKeywords.Any(k => m.ToLowerInvariant().Contains(k.ToLowerInvariant()))).ToList();
-                if (imgModels.Count == 0) imgModels = puterModels; // fallback: show all
+                if (imgModels.Count == 0) imgModels = puterModels;
                 foreach (var m in imgModels)
                     PuterImageGenBox.Items.Add(new ComboBoxItem { Content = m });
                 SetCombo(PuterImageGenBox, ConfigManager.Settings.PuterImageGenModel);
             }
             catch (Exception ex)
             {
-                CrashLogger.Log("WARN", $"Puter models section failed: {ex.Message}");
-                PuterModelsStatus.Text = "Puter token set but couldn't fetch models. Will retry on demand.";
+                CrashLogger.Log("WARN", $"Puter UI update failed: {ex.Message}");
             }
-        }
+        });
     }
 
     private void UpdateBreadcrumbBar()

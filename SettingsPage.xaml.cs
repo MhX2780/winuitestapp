@@ -17,30 +17,11 @@ public sealed partial class SettingsPage : Page
 
     private void SettingsPage_Loaded(object sender, RoutedEventArgs e)
     {
-        CrashLogger.Log("INFO", "SettingsPage_Loaded: START");
+        try { LoadUI(); }
+        catch (Exception ex) { CrashLogger.Log("ERROR", $"LoadUI failed: {ex.Message}"); }
 
-        try
-        {
-            LoadUI();
-            CrashLogger.Log("INFO", "SettingsPage_Loaded: LoadUI done");
-        }
-        catch (Exception ex)
-        {
-            CrashLogger.Log("ERROR", $"SettingsPage_Loaded (LoadUI) failed: {ex.GetType().Name}: {ex.Message}\n{ex.StackTrace}");
-        }
-
-        try
-        {
-            LoadGeminiModels();
-            CrashLogger.Log("INFO", "SettingsPage_Loaded: LoadGeminiModels done");
-        }
-        catch (Exception ex)
-        {
-            CrashLogger.Log("ERROR", $"SettingsPage_Loaded (LoadGeminiModels) failed: {ex.GetType().Name}: {ex.Message}\n{ex.StackTrace}");
-        }
-
-        // Puter models: loaded on-demand via buttons only
-        CrashLogger.Log("INFO", "SettingsPage_Loaded: END");
+        try { LoadGeminiModels(); }
+        catch (Exception ex) { CrashLogger.Log("ERROR", $"LoadGeminiModels failed: {ex.Message}"); }
     }
 
     private void LoadUI()

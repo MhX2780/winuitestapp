@@ -30,7 +30,8 @@ public partial class App : Application
         {
             // Show loading screen first
             var window = new MainWindow();
-            window.SystemBackdrop = new DesktopAcrylicBackdrop();
+            // MicaBackdrop: lightweight, no rendering freeze (DesktopAcrylicBackdrop causes hangs)
+            window.SystemBackdrop = new Microsoft.UI.Xaml.Media.MicaBackdrop();
             MainWindow = window;
             window.Activate();
 

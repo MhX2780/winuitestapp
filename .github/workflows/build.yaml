@@ -1,4 +1,4 @@
-name: Build AdvaBrowser
+name: Build UGA
 
 on:
   push:
@@ -24,13 +24,13 @@ jobs:
       uses: microsoft/setup-msbuild@v2
 
     - name: Restore
-      run: dotnet restore AdvaBrowser.sln
+      run: dotnet restore UGA.sln
 
     - name: Build with MSBuild
       id: build
       shell: pwsh
       run: |- 
-        msbuild AdvaBrowser.csproj /p:Configuration=Release /p:Platform=x64 /v:detailed 2>&1 | Tee-Object -FilePath build-log.txt
+        msbuild UGA.csproj /p:Configuration=Release /p:Platform=x64 /v:detailed 2>&1 | Tee-Object -FilePath build-log.txt
         Write-Host "BUILD EXIT CODE: $LASTEXITCODE"
       continue-on-error: true
 
@@ -46,7 +46,7 @@ jobs:
       if: steps.build.outcome == 'success'
       shell: pwsh
       run: |- 
-        dotnet publish AdvaBrowser.csproj -c Release -r win-x64 `
+        dotnet publish UGA.csproj -c Release -r win-x64 `
           --self-contained true `
           -p:PublishSingleFile=true `
           -p:IncludeNativeLibrariesForSelfExtract=true `
@@ -79,7 +79,7 @@ jobs:
       if: steps.publish.outputs.publish_ok == 'true'
       shell: pwsh
       run: |- 
-        $exe = Get-ChildItem -Path '.' -Recurse -Filter 'AdvaBrowser.exe' -ErrorAction SilentlyContinue |
+        $exe = Get-ChildItem -Path '.' -Recurse -Filter 'UGA.exe' -ErrorAction SilentlyContinue |
           Where-Object { $_.FullName -like '*bin*Release*publish*' } |
           Select-Object -First 1
         if ($exe) {
@@ -98,7 +98,7 @@ jobs:
       if: steps.findexe.outputs.exe_found != 'true' && steps.build.outcome == 'success'
       shell: pwsh
       run: |- 
-        $exe = Get-ChildItem -Path '.' -Recurse -Filter 'AdvaBrowser.exe' -ErrorAction SilentlyContinue |
+        $exe = Get-ChildItem -Path '.' -Recurse -Filter 'UGA.exe' -ErrorAction SilentlyContinue |
           Where-Object { $_.FullName -like '*bin*Release*' } |
           Select-Object -First 1
         if ($exe) {
@@ -118,10 +118,10 @@ jobs:
       run: |- 
         $tag = "v1.0.0-$(Get-Date -Format 'yyyyMMdd-HHmmss')"
         $exePath = "${{ steps.findexe.outputs.exe_path }}"
-        $exeName = "AdvaBrowser.exe"
+        $exeName = "UGA.exe"
         $size = [math]::Round(((Get-Item $exePath).Length / 1MB), 2)
         Write-Host "UPLOAD: $exeName ($size MB)"
-        $body = @{ tag_name=$tag; target_commitish=$env:GITHUB_SHA; name="Release $tag"; body="AdvaBrowser $tag - Self-contained single EXE ($size MB)`n`nDownload AdvaBrowser.exe and run it directly. No installation needed."; draft=$false; prerelease=$false } | ConvertTo-Json -Compress
+        $body = @{ tag_name=$tag; target_commitish=$env:GITHUB_SHA; name="Release $tag"; body="UGA $tag - Self-contained single EXE ($size MB)`n`nDownload UGA.exe and run it directly. No installation needed."; draft=$false; prerelease=$false } | ConvertTo-Json -Compress
         $h = @{ "Authorization"="token $env:GITHUB_TOKEN"; "Accept"="application/vnd.github+json" }
         $r = Invoke-RestMethod -Uri "$env:GITHUB_API_URL/repos/$env:GITHUB_REPOSITORY/releases" -Method Post -Headers $h -Body $body -ContentType 'application/json'
         $url = $r.upload_url -replace '\{\?name,label\}', ''
@@ -136,10 +136,10 @@ jobs:
       run: |- 
         $tag = "v1.0.0-$(Get-Date -Format 'yyyyMMdd-HHmmss')"
         $exePath = "${{ steps.findexe2.outputs.exe_path }}"
-        $exeName = "AdvaBrowser.exe"
+        $exeName = "UGA.exe"
         $size = [math]::Round(((Get-Item $exePath).Length / 1MB), 2)
         Write-Host "UPLOAD (fallback): $exeName ($size MB)"
-        $body = @{ tag_name=$tag; target_commitish=$env:GITHUB_SHA; name="Release $tag"; body="AdvaBrowser $tag - Single EXE ($size MB)"; draft=$false; prerelease=$false } | ConvertTo-Json -Compress
+        $body = @{ tag_name=$tag; target_commitish=$env:GITHUB_SHA; name="Release $tag"; body="UGA $tag - Single EXE ($size MB)"; draft=$false; prerelease=$false } | ConvertTo-Json -Compress
         $h = @{ "Authorization"="token $env:GITHUB_TOKEN"; "Accept"="application/vnd.github+json" }
         $r = Invoke-RestMethod -Uri "$env:GITHUB_API_URL/repos/$env:GITHUB_REPOSITORY/releases" -Method Post -Headers $h -Body $body -ContentType 'application/json'
         $url = $r.upload_url -replace '\{\?name,label\}', ''

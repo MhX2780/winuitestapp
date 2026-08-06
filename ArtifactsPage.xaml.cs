@@ -4,7 +4,7 @@ using Microsoft.UI.Xaml.Documents;
 using Microsoft.UI.Xaml.Navigation;
 using Newtonsoft.Json;
 
-namespace AdvaBrowser;
+namespace UGA;
 
 public sealed partial class ArtifactsPage : Page
 {

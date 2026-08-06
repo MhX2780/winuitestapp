@@ -3,7 +3,7 @@ using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Documents;
 using Newtonsoft.Json;
 
-namespace AdvaBrowser;
+namespace UGA;
 
 public sealed partial class HomePage : Page
 {

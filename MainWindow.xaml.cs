@@ -4,7 +4,7 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using System.Runtime.InteropServices;
 
-namespace AdvaBrowser;
+namespace UGA;
 
 public sealed partial class MainWindow : Window
 {

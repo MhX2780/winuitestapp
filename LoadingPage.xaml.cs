@@ -1,6 +1,6 @@
 using Microsoft.UI.Xaml.Controls;
 
-namespace AdvaBrowser;
+namespace UGA;
 
 public sealed partial class LoadingPage : Page
 {

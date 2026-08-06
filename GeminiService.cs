@@ -3,7 +3,7 @@ using System.Net.Http.Headers;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 
-namespace AdvaBrowser;
+namespace UGA;
 
 /// <summary>
 /// Full Gemini service ported from UGA agent.py.

@@ -1,6 +1,6 @@
 using Newtonsoft.Json;
 
-namespace AdvaBrowser;
+namespace UGA;
 
 // Chat message
 public class ChatMessage

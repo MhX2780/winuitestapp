@@ -4,7 +4,7 @@ using System.Text;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 
-namespace AdvaBrowser;
+namespace UGA;
 
 /// <summary>
 /// Full Puter.js REST API integration ported from UGA providers.py.

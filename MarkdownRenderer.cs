@@ -1,6 +1,6 @@
 using System.Text.RegularExpressions;
 
-namespace AdvaBrowser;
+namespace UGA;
 
 /// <summary>
 /// Markdown renderer with code block Cards, syntax highlighting, and copy buttons.

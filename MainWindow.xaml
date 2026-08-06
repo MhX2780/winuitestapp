@@ -1,8 +1,8 @@
 <Window
-    x:Class="AdvaBrowser.MainWindow"
+    x:Class="UGA.MainWindow"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-    xmlns:local="using:AdvaBrowser"
+    xmlns:local="using:UGA"
     Title="UGA">
 
     <NavigationView

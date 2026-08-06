@@ -2,7 +2,7 @@ using System.Reflection;
 using System.Runtime.InteropServices;
 using Microsoft.UI.Xaml;
 
-namespace AdvaBrowser;
+namespace UGA;
 
 /// <summary>
 /// Cursor helper for WinUI 3 Desktop.

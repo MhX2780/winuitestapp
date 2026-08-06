@@ -1,5 +1,5 @@
 using Newtonsoft.Json;
-namespace AdvaBrowser;
+namespace UGA;
 
 /// <summary>
 /// Full configuration manager ported from UGA config.py.

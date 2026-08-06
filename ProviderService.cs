@@ -4,7 +4,7 @@ using System.Text;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 
-namespace AdvaBrowser;
+namespace UGA;
 
 /// <summary>
 /// Multi-provider abstraction ported from UGA providers.py.

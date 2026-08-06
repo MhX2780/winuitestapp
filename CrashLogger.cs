@@ -2,7 +2,7 @@ using System.Diagnostics;
 using System.Reflection;
 using System.Text;
 
-namespace AdvaBrowser;
+namespace UGA;
 
 /// <summary>
 /// File-based crash and runtime logger.

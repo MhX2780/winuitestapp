@@ -1,7 +1,7 @@
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Data;
 
-namespace AdvaBrowser;
+namespace UGA;
 
 /// <summary>
 /// Converts ChatMessage.Role to Visibility.

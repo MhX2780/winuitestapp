@@ -1,5 +1,5 @@
 using Newtonsoft.Json;
-namespace AdvaBrowser;
+namespace UGA;
 
 /// <summary>
 /// Memory system ported from UGA memory.py.

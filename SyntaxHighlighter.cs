@@ -2,7 +2,7 @@ using System.Text.RegularExpressions;
 using Microsoft.UI.Text;
 using Microsoft.UI.Xaml.Controls;
 
-namespace AdvaBrowser;
+namespace UGA;
 
 /// <summary>
 /// Per-token syntax highlighter for RichEditBox.

@@ -3,7 +3,7 @@ using Microsoft.UI.Xaml.Controls;
 using Windows.Storage.Pickers;
 using System.Runtime.InteropServices;
 
-namespace AdvaBrowser;
+namespace UGA;
 
 public sealed partial class SettingsPage : Page
 {

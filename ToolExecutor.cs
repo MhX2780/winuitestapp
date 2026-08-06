@@ -3,7 +3,7 @@ using System.Text.RegularExpressions;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 
-namespace AdvaBrowser;
+namespace UGA;
 
 /// <summary>
 /// Full tool executor ported from UGA tools.py.

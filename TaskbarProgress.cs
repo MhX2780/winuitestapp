@@ -1,6 +1,6 @@
 using System.Runtime.InteropServices;
 
-namespace AdvaBrowser;
+namespace UGA;
 
 /// <summary>
 /// Windows Taskbar Progress Bar integration ported from UGA taskbar_progress.py.

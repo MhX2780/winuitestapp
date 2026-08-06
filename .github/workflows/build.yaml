@@ -55,7 +55,7 @@ jobs:
           -p:PublishTrimmed=false `
           -p:EnableMsixTooling=true `
           -p:WindowsPackageType=None `
-          -p:WindowsAppSDKSelfContained=true 2>&1 | Tee-Object -FilePath publish-log.txt
+          -p:WindowsAppSDKSelfContained=true 2>&1 | Tee-Object -FilePath "$env:RUNNER_TEMP\publish-log.txt"
         $code = $LASTEXITCODE
         Write-Host "PUBLISH EXIT CODE: $code"
         if ($code -eq 0) {
@@ -70,8 +70,8 @@ jobs:
       shell: pwsh
       run: |- 
         Write-Host "=== PUBLISH ERRORS ==="
-        if (Test-Path publish-log.txt) {
-          Select-String -Path publish-log.txt -Pattern 'error ' | Select-Object -First 20 | ForEach-Object { Write-Host $_.Line }
+        if (Test-Path "$env:RUNNER_TEMP\publish-log.txt") {
+          Select-String -Path "$env:RUNNER_TEMP\publish-log.txt" -Pattern 'error ' | Select-Object -First 20 | ForEach-Object { Write-Host $_.Line }
         }
 
     - name: Find published EXE
@@ -174,4 +174,4 @@ jobs:
         name: build-log
         path: |
           build-log.txt
-          publish-log.txt
+          ${{ runner.temp }}/publish-log.txt

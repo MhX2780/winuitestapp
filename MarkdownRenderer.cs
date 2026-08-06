@@ -254,9 +254,20 @@ public static class MarkdownRenderer
             MinHeight = 40,
         };
 
-        codeBox.TextDocument.SetText(Microsoft.UI.Text.TextSetOptions.None, code);
-        SyntaxHighlighter.ApplyHighlighting(codeBox, language);
         stack.Children.Add(codeBox);
+
+        // Set text + highlight AFTER the box is in the visual tree.
+        // SetText() throws UnauthorizedAccessException if the control
+        // hasn't been added to a loaded parent yet (no HWND).
+        codeBox.Loaded += (s, e) =>
+        {
+            try
+            {
+                codeBox.TextDocument.SetText(Microsoft.UI.Text.TextSetOptions.None, code);
+                SyntaxHighlighter.ApplyHighlighting(codeBox, language);
+            }
+            catch { }
+        };
 
         card.Child = stack;
 

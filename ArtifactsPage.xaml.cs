@@ -224,11 +224,20 @@ public sealed partial class ArtifactsPage : Page
             HorizontalAlignment = HorizontalAlignment.Stretch,
         };
 
-        // Apply syntax highlighting
-        codeBox.TextDocument.SetText(Microsoft.UI.Text.TextSetOptions.None, code);
-        SyntaxHighlighter.ApplyHighlighting(codeBox, language);
-
         mainStack.Children.Add(codeBox);
+
+        // Apply syntax highlighting AFTER the box is in the visual tree.
+        // RichEditBox.TextDocument.SetText() throws UnauthorizedAccessException
+        // if the control has no HWND yet (i.e., before it's added to a loaded Panel).
+        codeBox.Loaded += (s, e) =>
+        {
+            try
+            {
+                codeBox.TextDocument.SetText(Microsoft.UI.Text.TextSetOptions.None, code);
+                SyntaxHighlighter.ApplyHighlighting(codeBox, language);
+            }
+            catch { }
+        };
 
         // ── Expand/Collapse toggle ──
         expandBtn.Click += (s, e) =>

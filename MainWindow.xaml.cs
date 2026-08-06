@@ -102,17 +102,38 @@ public sealed partial class MainWindow : Window
         UpdateCaptionColors(isDark);
     }
 
+    [DllImport("advapi32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    private static extern IntPtr RegOpenKeyExW(IntPtr hKey, string lpSubKey, uint ulOptions, uint samDesired, out IntPtr phkResult);
+
+    [DllImport("advapi32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    private static extern int RegCloseKey(IntPtr hKey);
+
+    [DllImport("advapi32.dll", SetLastError = true)]
+    private static extern int RegQueryValueExW(IntPtr hKey, string lpValueName, uint lpReserved, out uint lpType, byte[] lpData, ref int lpcbData);
+
+    private const uint HKEY_CURRENT_USER = 1;
+    private const uint KEY_READ = 0x20019;
+    private const uint REG_DWORD = 4;
+
     private static bool IsSystemDark()
     {
         try
         {
-            // Read Windows personalization theme from registry
-            var key = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize");
-            if (key != null)
+            IntPtr hKey;
+            if (RegOpenKeyExW((IntPtr)HKEY_CURRENT_USER,
+                @"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize",
+                0, KEY_READ, out hKey) == 0)
             {
-                var val = key.GetValue("AppsUseLightTheme");
-                if (val is int v)
-                    return v == 0; // 0 = dark, 1 = light
+                int size = 4;
+                uint type;
+                var data = new byte[4];
+                if (RegQueryValueExW(hKey, "AppsUseLightTheme", 0, out type, data, ref size) == 0 && type == REG_DWORD)
+                {
+                    int val = BitConverter.ToInt32(data, 0);
+                    RegCloseKey(hKey);
+                    return val == 0; // 0 = dark, 1 = light
+                }
+                RegCloseKey(hKey);
             }
         }
         catch { }

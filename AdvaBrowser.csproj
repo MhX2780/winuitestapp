@@ -25,7 +25,6 @@
 
   <ItemGroup>
     <PackageReference Include="Microsoft.WindowsAppSDK" Version="1.8.260508005" />
-    <PackageReference Include="Microsoft.Windows.Compatibility" Version="8.0.0" />
     <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
   </ItemGroup>
 

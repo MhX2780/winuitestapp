@@ -18,6 +18,7 @@ public sealed partial class HomePage : Page
         this.InitializeComponent();
         LoadChatHistory();
         UpdateVisibility();
+        Bind();
     }
 
     private void UpdateVisibility()
@@ -113,6 +114,21 @@ public sealed partial class HomePage : Page
     {
         var sessions = ConfigManager.GetChatSessionFiles();
         var panel = new StackPanel { Spacing = 8 };
+
+        // Also include the active chat if it has messages
+        if (File.Exists(ConfigManager.ActiveChatFile))
+        {
+            try
+            {
+                var activeJson = File.ReadAllText(ConfigManager.ActiveChatFile);
+                var activeMsgs = JsonConvert.DeserializeObject<List<ChatMessage>>(activeJson);
+                if (activeMsgs != null && activeMsgs.Count > 0)
+                {
+                    sessions.Insert(0, ConfigManager.ActiveChatFile); // Add at beginning
+                }
+            }
+            catch { }
+        }
 
         if (sessions.Count == 0)
         {
@@ -571,7 +587,17 @@ public sealed partial class HomePage : Page
     private void ScrollBottom()
     {
         if (ChatListView.Items.Count > 0)
-            ChatListView.ScrollIntoView(ChatListView.Items[^1]);
+        {
+            _ = System.Threading.Tasks.Task.Run(async () =>
+            {
+                await System.Threading.Tasks.Task.Delay(50);
+                DispatcherQueue.TryEnqueue(() =>
+                {
+                    if (ChatListView.Items.Count > 0)
+                        ChatListView.ScrollIntoView(ChatListView.Items[^1]);
+                });
+            });
+        }
     }
 
     /// <summary>

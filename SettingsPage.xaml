@@ -38,21 +38,14 @@
                 <StackPanel Spacing="12">
                     <TextBlock Text="Primary Model" FontWeight="SemiBold"
                                Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
-                    <ComboBox x:Name="ModelCombo" Width="400" SelectedIndex="0" CornerRadius="6">
-                        <ComboBoxItem Content="gemini-3.6-flash"/>
-                        <ComboBoxItem Content="gemini-3.5-flash"/>
-                        <ComboBoxItem Content="gemini-3.5-flash-lite"/>
-                        <ComboBoxItem Content="gemini-2.5-flash"/>
-                        <ComboBoxItem Content="gemini-2.5-pro"/>
-                        <ComboBoxItem Content="gemini-flash-latest"/>
-                        <ComboBoxItem Content="gemma-4-31b-it"/>
-                    </ComboBox>
+                    <ComboBox x:Name="ModelCombo" Width="400" CornerRadius="6"/>
                     <TextBlock Text="Model Chain (fallback order, comma-separated)"
                                FontWeight="SemiBold" Margin="0,8,0,0"
                                Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
                     <TextBox x:Name="ModelChainBox"
                              PlaceholderText="gemini-3.6-flash, gemini-3.5-flash, ..."
                              Width="400" TextWrapping="Wrap"/>
+                    <BreadcrumbBar x:Name="ModelChainBreadcrumb" Margin="0,4,0,0"/>
                 </StackPanel>
             </Border>
 
@@ -133,29 +126,13 @@
                     <ToggleSwitch x:Name="MultiAgent" Header="Enable Multi-Agent" IsOn="False"
                                   ToolTipService.ToolTip="Classifier -&gt; Planner -&gt; Executor -&gt; Reviewer"/>
                     <TextBlock Text="Classifier Model" FontWeight="SemiBold" Margin="0,4,0,0"/>
-                    <ComboBox x:Name="ClassifierCombo" Width="400" CornerRadius="6">
-                        <ComboBoxItem Content="gemini-2.5-flash-lite"/>
-                        <ComboBoxItem Content="gemini-3.6-flash"/>
-                        <ComboBoxItem Content="gemini-2.5-flash"/>
-                    </ComboBox>
+                    <ComboBox x:Name="ClassifierCombo" Width="400" CornerRadius="6"/>
                     <TextBlock Text="Planner Model" FontWeight="SemiBold" Margin="0,4,0,0"/>
-                    <ComboBox x:Name="PlannerCombo" Width="400" CornerRadius="6">
-                        <ComboBoxItem Content="gemini-3.6-flash"/>
-                        <ComboBoxItem Content="gemini-2.5-pro"/>
-                        <ComboBoxItem Content="gemini-2.5-flash"/>
-                    </ComboBox>
+                    <ComboBox x:Name="PlannerCombo" Width="400" CornerRadius="6"/>
                     <TextBlock Text="Executor Model" FontWeight="SemiBold" Margin="0,4,0,0"/>
-                    <ComboBox x:Name="ExecutorCombo" Width="400" CornerRadius="6">
-                        <ComboBoxItem Content="gemini-3.5-flash"/>
-                        <ComboBoxItem Content="gemini-2.5-flash"/>
-                        <ComboBoxItem Content="gemini-3.6-flash"/>
-                    </ComboBox>
+                    <ComboBox x:Name="ExecutorCombo" Width="400" CornerRadius="6"/>
                     <TextBlock Text="Reviewer Model" FontWeight="SemiBold" Margin="0,4,0,0"/>
-                    <ComboBox x:Name="ReviewerCombo" Width="400" CornerRadius="6">
-                        <ComboBoxItem Content="gemini-2.5-flash-lite"/>
-                        <ComboBoxItem Content="gemini-2.5-flash"/>
-                        <ComboBoxItem Content="gemini-3.5-flash"/>
-                    </ComboBox>
+                    <ComboBox x:Name="ReviewerCombo" Width="400" CornerRadius="6"/>
                 </StackPanel>
             </Border>
 

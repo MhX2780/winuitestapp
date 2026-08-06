@@ -38,13 +38,14 @@
             </ListView.ItemContainerStyle>
             <ListView.ItemsPanel>
                 <ItemsPanelTemplate>
-                    <ItemsStackPanel/>
+                    <ItemsStackPanel VerticalAlignment="Bottom"/>
                 </ItemsPanelTemplate>
             </ListView.ItemsPanel>
             <ListView.ItemTemplate>
                 <DataTemplate x:DataType="local:ChatMessage">
                     <Grid Padding="4,2">
                         <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
                             <RowDefinition Height="Auto"/>
                             <RowDefinition Height="Auto"/>
                             <RowDefinition Height="Auto"/>
@@ -114,6 +115,36 @@
                                 <TextBlock Text="{x:Bind Content}" FontSize="12" Opacity="0.7"
                                            Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                                            TextWrapping="Wrap" Margin="24,0,0,0"/>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Deep Thinking card -->
+                        <Border Grid.Row="3"
+                                Background="{ThemeResource CardBackgroundFillColorSecondaryBrush}"
+                                BorderBrush="{ThemeResource SystemFillColorAttentionBrush}"
+                                BorderThickness="1"
+                                CornerRadius="8" Padding="12,10"
+                                HorizontalAlignment="Left" MaxWidth="700" Margin="0,0,60,0">
+                            <Border.Visibility>
+                                <Binding Path="IsDeepThinking" Converter="{StaticResource BoolToVisibilityConverter}"/>
+                            </Border.Visibility>
+                            <StackPanel Spacing="4">
+                                <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                                    <FontIcon Glyph="&#xE945;" FontSize="16"
+                                              Foreground="{ThemeResource SystemFillColorAttentionBrush}"
+                                              VerticalAlignment="Center"/>
+                                    <TextBlock Text="Deep Thinking" FontSize="13" FontWeight="SemiBold"
+                                               Foreground="{ThemeResource TextFillColorPrimaryBrush}"
+                                               VerticalAlignment="Center"/>
+                                    <ProgressRing Width="14" Height="14" Foreground="{ThemeResource SystemFillColorAttentionBrush}">
+                                        <ProgressRing.Visibility>
+                                            <Binding Path="IsStreaming" Converter="{StaticResource BoolToVisibilityConverter}"/>
+                                        </ProgressRing.Visibility>
+                                    </ProgressRing>
+                                </StackPanel>
+                                <TextBlock Text="{x:Bind ThinkingContent}" FontSize="12" Opacity="0.8"
+                                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                           TextWrapping="Wrap" Margin="22,0,0,0"/>
                             </StackPanel>
                         </Border>
 

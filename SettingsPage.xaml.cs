@@ -33,6 +33,7 @@ public sealed partial class SettingsPage : Page
             }
 
             ModelChainBox.Text = string.Join(", ", ConfigManager.ModelChain.Select(m => m.Name));
+            ModelChainBreadcrumb.ItemsSource = ConfigManager.ModelChain.Select(m => m.Name).ToArray();
             WorkspaceBox.Text = s.WorkspacePath;
             UpdateWsStatus();
 
@@ -75,6 +76,7 @@ public sealed partial class SettingsPage : Page
             SetThemeCombo(s.ThemeMode);
 
             _isLoadingUI = false;
+            _ = LoadModelsAsync();
         }
         catch (Exception ex)
         {
@@ -174,6 +176,44 @@ public sealed partial class SettingsPage : Page
             catch (Exception ex2)
             {
                 CrashLogger.Log("ERROR", $"Browse_Click: Win32 fallback also failed: {ex2.Message}");
+
+                // Strategy 3: Ask user to paste path via ContentDialog
+                CrashLogger.Log("INFO", "Browse_Click: Trying ContentDialog text input fallback");
+                try
+                {
+                    var inputBox = new TextBox
+                    {
+                        PlaceholderText = "Paste workspace directory path...",
+                        Text = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+                        Width = 400,
+                    };
+                    var inputPanel = new StackPanel { Spacing = 8 };
+                    inputPanel.Children.Add(new TextBlock
+                    {
+                        Text = $"Both folder pickers failed. Please paste the directory path manually:",
+                        TextWrapping = TextWrapping.Wrap,
+                    });
+                    inputPanel.Children.Add(inputBox);
+
+                    var inputDlg = new ContentDialog
+                    {
+                        Title = "Enter Workspace Path",
+                        Content = inputPanel,
+                        PrimaryButtonText = "Use This Path",
+                        CloseButtonText = "Cancel",
+                        DefaultButton = ContentDialogButton.Primary,
+                        XamlRoot = XamlRoot,
+                    };
+                    if (await inputDlg.ShowAsync() == ContentDialogResult.Primary)
+                    {
+                        selectedPath = inputBox.Text?.Trim();
+                    }
+                }
+                catch (Exception ex3)
+                {
+                    CrashLogger.Log("ERROR", $"Browse_Click: ContentDialog fallback failed: {ex3.Message}");
+                }
+
                 WorkspaceStatus.Text = $"Folder picker error: {ex.Message}. Win32 fallback: {ex2.Message}";
                 return;
             }
@@ -330,6 +370,42 @@ public sealed partial class SettingsPage : Page
             catch (Exception ex)
             {
                 LogPathText.Text = $"Could not open folder: {ex.Message}";
+            }
+        }
+    }
+
+    private async void LoadModelsAsync()
+    {
+        // Load Gemini models from default chain
+        var geminiModels = ConfigManager.DefaultModelChain.Select(m => m.Name).ToList();
+
+        foreach (var combo in new[] { ModelCombo, ClassifierCombo, PlannerCombo, ExecutorCombo, ReviewerCombo })
+        {
+            combo.Items.Clear();
+            foreach (var model in geminiModels)
+                combo.Items.Add(new ComboBoxItem { Content = model });
+        }
+
+        // Select previously chosen models
+        SetCombo(ModelCombo, ConfigManager.ModelChain.FirstOrDefault()?.Name ?? geminiModels[0]);
+        SetCombo(ClassifierCombo, ConfigManager.MultiAgentRoles?.GetValueOrDefault("classifier") ?? "gemini-2.5-flash-lite");
+        SetCombo(PlannerCombo, ConfigManager.MultiAgentRoles?.GetValueOrDefault("planner") ?? "gemini-3.6-flash");
+        SetCombo(ExecutorCombo, ConfigManager.MultiAgentRoles?.GetValueOrDefault("executor") ?? "gemini-3.5-flash");
+        SetCombo(ReviewerCombo, ConfigManager.MultiAgentRoles?.GetValueOrDefault("reviewer") ?? "gemini-2.5-flash-lite");
+
+        // Load Puter models if token exists
+        var token = ConfigManager.LoadPuterToken();
+        if (!string.IsNullOrEmpty(token))
+        {
+            try
+            {
+                using var puter = new PuterService();
+                var puterModels = await puter.ListModelsAsync();
+                PuterModelsStatus.Text = $"Puter: {puterModels.Count} models loaded. Use List buttons to browse.";
+            }
+            catch
+            {
+                PuterModelsStatus.Text = "Puter token set but couldn't fetch models. Will retry on demand.";
             }
         }
     }

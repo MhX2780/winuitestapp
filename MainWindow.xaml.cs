@@ -17,15 +17,11 @@ public sealed partial class MainWindow : Window
         AppWindow.TitleBar.ExtendsContentIntoTitleBar = true;
         this.AppWindow.Title = "UGA";
 
-        // Start maximized
-        var displayArea = DisplayArea.GetFromWindowId(AppWindow.Id, DisplayAreaFallback.Primary);
-        if (displayArea != null)
+        // Start maximized using AppWindowPresenter
+        var presenter = AppWindow.Presenter;
+        if (presenter is OverlappedPresenter overlapped)
         {
-            this.AppWindow.MoveAndResize(new Windows.Graphics.RectInt32(
-                displayArea.WorkArea.X,
-                displayArea.WorkArea.Y,
-                displayArea.WorkArea.Width,
-                displayArea.WorkArea.Height));
+            overlapped.State = OverlappedPresenterState.Maximized;
         }
 
         var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
@@ -169,6 +165,21 @@ public sealed partial class MainWindow : Window
 
         if (action == "history")
         {
+            if (ContentFrame.Content is not HomePage)
+            {
+                // Navigate to chat first, then show history after a short delay
+                ContentFrame.Navigate(typeof(HomePage));
+                _ = System.Threading.Tasks.Task.Run(async () =>
+                {
+                    await System.Threading.Tasks.Task.Delay(500);
+                    DispatcherQueue.TryEnqueue(() =>
+                    {
+                        if (ContentFrame.Content is HomePage hp)
+                            hp.ShowChatHistory();
+                    });
+                });
+                return;
+            }
             if (ContentFrame.Content is HomePage hp)
                 hp.ShowChatHistory();
             return;
@@ -207,12 +218,17 @@ public sealed partial class MainWindow : Window
 
     private void Navigate(string tag)
     {
-        ContentFrame.Navigate(tag switch
+        var targetType = tag switch
         {
             "home" => typeof(HomePage),
             "artifacts" => typeof(ArtifactsPage),
             "settings" => typeof(SettingsPage),
             _ => typeof(HomePage),
-        });
+        };
+
+        // If already showing this page, don't re-navigate
+        if (ContentFrame.Content?.GetType() == targetType) return;
+
+        ContentFrame.Navigate(targetType);
     }
 }

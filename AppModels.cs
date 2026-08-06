@@ -28,6 +28,9 @@ public class ChatMessage
     public string? PlanStep { get; set; }
     public int? StepNumber { get; set; }
     public int? TotalSteps { get; set; }
+    // Deep Thinking display
+    public bool IsDeepThinking { get; set; } = false;
+    public string? ThinkingContent { get; set; }
 }
 
 // Tool call log entry (execution log)

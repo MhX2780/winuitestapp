@@ -64,9 +64,7 @@
         </NavigationView.FooterMenuItems>
 
         <Grid>
-            <Frame x:Name="ContentFrame">
-                <Frame.CacheSize>3</Frame.CacheSize>
-            </Frame>
+            <Frame x:Name="ContentFrame" CacheSize="3"/>
         </Grid>
     </NavigationView>
 </Window>

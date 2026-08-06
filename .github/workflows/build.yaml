@@ -53,14 +53,30 @@ jobs:
           -p:EnableCompressionInSingleFile=true `
           -p:IncludeAllContentForSelfExtract=true `
           -p:PublishTrimmed=false `
+          -p:EnableMsixTooling=true `
           -p:WindowsPackageType=None `
-          -p:WindowsAppSDKSelfContained=true
-        Write-Host "PUBLISH EXIT CODE: $LASTEXITCODE"
+          -p:WindowsAppSDKSelfContained=true 2>&1 | Tee-Object -FilePath publish-log.txt
+        $code = $LASTEXITCODE
+        Write-Host "PUBLISH EXIT CODE: $code"
+        if ($code -eq 0) {
+          echo "publish_ok=true" >> $env:GITHUB_OUTPUT
+        } else {
+          echo "publish_ok=false" >> $env:GITHUB_OUTPUT
+        }
       continue-on-error: true
+
+    - name: Show publish errors
+      if: steps.publish.outputs.publish_ok != 'true'
+      shell: pwsh
+      run: |- 
+        Write-Host "=== PUBLISH ERRORS ==="
+        if (Test-Path publish-log.txt) {
+          Select-String -Path publish-log.txt -Pattern 'error ' | Select-Object -First 20 | ForEach-Object { Write-Host $_.Line }
+        }
 
     - name: Find published EXE
       id: findexe
-      if: steps.publish.outcome == 'success'
+      if: steps.publish.outputs.publish_ok == 'true'
       shell: pwsh
       run: |- 
         $exe = Get-ChildItem -Path '.' -Recurse -Filter 'AdvaBrowser.exe' -ErrorAction SilentlyContinue |
@@ -101,6 +117,13 @@ jobs:
           echo "exe_found=false" >> $env:GITHUB_OUTPUT
         }
 
+    - name: Copy icon next to fallback EXE
+      if: steps.findexe2.outputs.exe_found == 'true' && steps.findexe.outputs.exe_found != 'true'
+      shell: pwsh
+      run: |-
+        Copy-Item -Path "app.ico" -Destination "${{ steps.findexe2.outputs.exe_dir }}\app.ico" -Force
+        Write-Host "Copied app.ico to fallback dir"
+
     - name: Create Release (single-file)
       if: steps.findexe.outputs.exe_found == 'true' && github.event_name == 'push'
       shell: pwsh
@@ -135,16 +158,20 @@ jobs:
         $dir = "${{ steps.findexe2.outputs.exe_dir }}"
         $zip = "AdvaBrowser-$tag.zip"
         Compress-Archive -Path "$dir\*" -DestinationPath $zip
-        $body = @{ tag_name=$tag; target_commitish=$env:GITHUB_SHA; name="Release $tag"; body="AdvaBrowser $tag - Full folder release"; draft=$false; prerelease=$false } | ConvertTo-Json -Compress
+        $size = [math]::Round(((Get-Item $zip).Length / 1MB), 2)
+        Write-Host "ZIP: $zip ($size MB)"
+        $body = @{ tag_name=$tag; target_commitish=$env:GITHUB_SHA; name="Release $tag"; body="AdvaBrowser $tag - Full folder release ($size MB)`n`nExtract the zip and run AdvaBrowser.exe"; draft=$false; prerelease=$false } | ConvertTo-Json -Compress
         $h = @{ "Authorization"="token $env:GITHUB_TOKEN"; "Accept"="application/vnd.github+json" }
         $r = Invoke-RestMethod -Uri "$env:GITHUB_API_URL/repos/$env:GITHUB_REPOSITORY/releases" -Method Post -Headers $h -Body $body -ContentType 'application/json'
         $url = $r.upload_url -replace '\{\?name,label\}', ''
         Invoke-RestMethod -Uri "${url}?name=$zip" -Method Post -Headers $h -Body ([IO.File]::ReadAllBytes("$PWD\$zip")) -ContentType 'application/zip' | Out-Null
         Write-Host "RELEASE: $($r.html_url)"
 
-    - name: Upload log on failure
-      if: steps.build.outcome == 'failure'
+    - name: Upload logs on failure
+      if: steps.build.outcome == 'failure' || steps.publish.outputs.publish_ok != 'true'
       uses: actions/upload-artifact@v4
       with:
         name: build-log
-        path: build-log.txt
+        path: |
+          build-log.txt
+          publish-log.txt

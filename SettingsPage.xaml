@@ -4,8 +4,22 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:local="using:AdvaBrowser">
 
-    <ScrollViewer Padding="32,24,32,32" Background="Transparent"
-                 HorizontalScrollBarVisibility="Disabled">
+    <Grid Background="Transparent">
+        <!-- Loading Spinner Overlay -->
+        <Grid x:Name="LoadingOverlay" Background="Transparent"
+              HorizontalAlignment="Center" VerticalAlignment="Center"
+              Visibility="Visible">
+            <StackPanel Spacing="16" HorizontalAlignment="Center">
+                <ProgressRing IsActive="True" Width="48" Height="48"
+                              Foreground="{ThemeResource AccentFillColorDefaultBrush}"/>
+                <TextBlock Text="Loading settings..." FontSize="14"
+                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                           HorizontalAlignment="Center"/>
+            </StackPanel>
+        </Grid>
+
+        <ScrollViewer x:Name="SettingsScroll" Padding="32,24,32,32" Background="Transparent"
+                     HorizontalScrollBarVisibility="Disabled" Visibility="Collapsed">
         <StackPanel Spacing="24" MaxWidth="800" HorizontalAlignment="Stretch">
 
             <!-- ═══ API Key ═══ -->
@@ -254,4 +268,5 @@
                        TextWrapping="Wrap"/>
         </StackPanel>
     </ScrollViewer>
+    </Grid>
 </Page>

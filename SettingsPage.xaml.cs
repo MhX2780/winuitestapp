@@ -10,7 +10,26 @@ public sealed partial class SettingsPage : Page
     public SettingsPage()
     {
         this.InitializeComponent();
-        LoadUI();
+        this.Loaded += SettingsPage_Loaded;
+    }
+
+    private async void SettingsPage_Loaded(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            LoadUI();
+            await LoadModelsAsyncWrapped();
+        }
+        catch (Exception ex)
+        {
+            CrashLogger.Log("ERROR", $"SettingsPage_Loaded failed: {ex.Message}");
+        }
+        finally
+        {
+            // Hide spinner, show content
+            LoadingOverlay.Visibility = Visibility.Collapsed;
+            SettingsScroll.Visibility = Visibility.Visible;
+        }
     }
 
     private void LoadUI()
@@ -73,7 +92,6 @@ public sealed partial class SettingsPage : Page
             SetThemeCombo(s.ThemeMode);
 
             _isLoadingUI = false;
-            LoadModelsAsync();
         }
         catch (Exception ex)
         {
@@ -367,7 +385,20 @@ public sealed partial class SettingsPage : Page
         }
     }
 
+    /// <summary>
+    /// Wrapper that returns Task so we can await it from SettingsPage_Loaded.
+    /// </summary>
+    private async System.Threading.Tasks.Task LoadModelsAsyncWrapped()
+    {
+        await LoadModelsAsyncCore();
+    }
+
     private async void LoadModelsAsync()
+    {
+        await LoadModelsAsyncCore();
+    }
+
+    private async System.Threading.Tasks.Task LoadModelsAsyncCore()
     {
         // Load Gemini models from default chain
         var geminiModels = ConfigManager.DefaultModelChain.Select(m => m.Name).ToList();
@@ -396,7 +427,17 @@ public sealed partial class SettingsPage : Page
             try
             {
                 using var puter = new PuterService();
-                var puterModels = await puter.ListModelsAsync();
+                List<string> puterModels;
+                try
+                {
+                    puterModels = await puter.ListModelsAsync();
+                }
+                catch (Exception ex)
+                {
+                    CrashLogger.Log("WARN", $"ListModelsAsync failed: {ex.Message}");
+                    PuterModelsStatus.Text = "Could not fetch Puter models. Try again later.";
+                    return;
+                }
                 PuterModelsStatus.Text = $"Puter: {puterModels.Count} models loaded.";
 
                 // Add Puter models to ALL model ComboBoxes (Gemini + Puter combined)
@@ -435,8 +476,9 @@ public sealed partial class SettingsPage : Page
                     PuterImageGenBox.Items.Add(new ComboBoxItem { Content = m });
                 SetCombo(PuterImageGenBox, ConfigManager.Settings.PuterImageGenModel);
             }
-            catch
+            catch (Exception ex)
             {
+                CrashLogger.Log("WARN", $"Puter models section failed: {ex.Message}");
                 PuterModelsStatus.Text = "Puter token set but couldn't fetch models. Will retry on demand.";
             }
         }

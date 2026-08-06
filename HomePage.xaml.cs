@@ -16,9 +16,16 @@ public sealed partial class HomePage : Page
     public HomePage()
     {
         this.InitializeComponent();
+        this.Loaded += HomePage_Loaded;
         LoadChatHistory();
         UpdateVisibility();
         Bind();
+    }
+
+    private void HomePage_Loaded(object sender, RoutedEventArgs e)
+    {
+        // Scroll to bottom on first load (app open or navigation)
+        ScrollToBottomImmediate();
     }
 
     private void UpdateVisibility()
@@ -669,6 +676,26 @@ public sealed partial class HomePage : Page
             _ = System.Threading.Tasks.Task.Run(async () =>
             {
                 await System.Threading.Tasks.Task.Delay(50);
+                DispatcherQueue.TryEnqueue(() =>
+                {
+                    if (ChatListView.Items.Count > 0)
+                        ChatListView.ScrollIntoView(ChatListView.Items[^1]);
+                });
+            });
+        }
+    }
+
+    /// <summary>
+    /// Immediate scroll to bottom — used on page load/navigation.
+    /// </summary>
+    private void ScrollToBottomImmediate()
+    {
+        if (ChatListView.Items.Count > 0)
+        {
+            // Use a small delay to let layout complete after Loaded
+            _ = System.Threading.Tasks.Task.Run(async () =>
+            {
+                await System.Threading.Tasks.Task.Delay(150);
                 DispatcherQueue.TryEnqueue(() =>
                 {
                     if (ChatListView.Items.Count > 0)

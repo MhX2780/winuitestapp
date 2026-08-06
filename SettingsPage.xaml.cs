@@ -11,20 +11,8 @@ public sealed partial class SettingsPage : Page
     private static List<string> _puterAllModels = new();
     public SettingsPage()
     {
-        CrashLogger.Log("INFO", "SettingsPage: constructor started");
-        try
-        {
-            this.InitializeComponent();
-            CrashLogger.Log("INFO", "SettingsPage: InitializeComponent OK");
-        }
-        catch (Exception ex)
-        {
-            CrashLogger.Log("FATAL", $"SettingsPage: InitializeComponent CRASH: {ex.GetType().Name}: {ex.Message}");
-            CrashLogger.WriteCrash($"SettingsPage InitializeComponent: {ex}");
-            throw;
-        }
+        this.InitializeComponent();
         this.Loaded += SettingsPage_Loaded;
-        CrashLogger.Log("INFO", "SettingsPage: constructor done");
     }
 
     private void SettingsPage_Loaded(object sender, RoutedEventArgs e)
@@ -33,7 +21,6 @@ public sealed partial class SettingsPage : Page
 
         try
         {
-            CrashLogger.Log("INFO", "SettingsPage_Loaded: calling LoadUI");
             LoadUI();
             CrashLogger.Log("INFO", "SettingsPage_Loaded: LoadUI done");
         }
@@ -44,17 +31,6 @@ public sealed partial class SettingsPage : Page
 
         try
         {
-            LoadingOverlay.Visibility = Visibility.Collapsed;
-            SettingsScroll.Visibility = Visibility.Visible;
-        }
-        catch (Exception ex)
-        {
-            CrashLogger.Log("ERROR", $"SettingsPage_Loaded (visibility) failed: {ex.Message}");
-        }
-
-        try
-        {
-            CrashLogger.Log("INFO", "SettingsPage_Loaded: calling LoadGeminiModels");
             LoadGeminiModels();
             CrashLogger.Log("INFO", "SettingsPage_Loaded: LoadGeminiModels done");
         }
@@ -63,26 +39,8 @@ public sealed partial class SettingsPage : Page
             CrashLogger.Log("ERROR", $"SettingsPage_Loaded (LoadGeminiModels) failed: {ex.GetType().Name}: {ex.Message}\n{ex.StackTrace}");
         }
 
-        // Load Puter models on a BACKGROUND thread — never blocks UI
-        _ = System.Threading.Tasks.Task.Run(async () =>
-        {
-            try
-            {
-                CrashLogger.Log("INFO", "LoadPuterModelsAsync: background thread started");
-                await LoadPuterModelsAsync();
-                CrashLogger.Log("INFO", "LoadPuterModelsAsync: done");
-            }
-            catch (Exception ex)
-            {
-                CrashLogger.Log("WARN", $"Puter model load failed: {ex.Message}");
-                DispatcherQueue.TryEnqueue(() =>
-                {
-                    try { PuterModelsStatus.Text = "Could not fetch Puter models."; } catch { }
-                });
-            }
-        });
-
-        CrashLogger.Log("INFO", "SettingsPage_Loaded: END (UI thread free)");
+        // Puter models: loaded on-demand via buttons only
+        CrashLogger.Log("INFO", "SettingsPage_Loaded: END");
     }
 
     private void LoadUI()

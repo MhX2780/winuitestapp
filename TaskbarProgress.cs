@@ -69,6 +69,7 @@ public static class TaskbarProgress
         {
             _taskbar = (ITaskbarList3)new TaskbarList();
             _taskbar.HrInit();
+            _taskbar.AddTab(_hwnd); // Register the window with the taskbar
             CrashLogger.Log("INFO", "TaskbarProgress initialized successfully");
         }
         catch (Exception ex) 
@@ -91,6 +92,7 @@ public static class TaskbarProgress
                 _hwnd = WinRT.Interop.WindowNative.GetWindowHandle(App.MainWindow);
                 _taskbar = (ITaskbarList3)new TaskbarList();
                 _taskbar.HrInit();
+                _taskbar.AddTab(_hwnd);
             }
         }
         catch { _taskbar = null; }

@@ -39,13 +39,20 @@
                     <TextBlock Text="Primary Model" FontWeight="SemiBold"
                                Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
                     <ComboBox x:Name="ModelCombo" Width="400" CornerRadius="6"/>
-                    <TextBlock Text="Model Chain (fallback order, comma-separated)"
+                    <TextBlock Text="Model Chain (click items to edit, or use dropdowns below)"
                                FontWeight="SemiBold" Margin="0,8,0,0"
                                Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
-                    <TextBox x:Name="ModelChainBox"
-                             PlaceholderText="gemini-3.6-flash, gemini-3.5-flash, ..."
-                             Width="400" TextWrapping="Wrap"/>
                     <BreadcrumbBar x:Name="ModelChainBreadcrumb" Margin="0,4,0,0"/>
+                    <Grid ColumnSpacing="8" Margin="0,4,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <ComboBox x:Name="AddModelCombo" Width="300" CornerRadius="6" PlaceholderText="Add model to chain..."/>
+                        <Button x:Name="AddModelBtn" Grid.Column="1" Content="+" Click="AddModelBtn_Click" CornerRadius="6" Width="40"/>
+                        <Button x:Name="RemoveLastModelBtn" Grid.Column="2" Content="-" Click="RemoveLastModelBtn_Click" CornerRadius="6" Width="40" ToolTipService.ToolTip="Remove last model from chain"/>
+                    </Grid>
                 </StackPanel>
             </Border>
 
@@ -191,16 +198,13 @@
                                   ToolTipService.ToolTip="Enable reasoning_effort parameter for reasoning-capable Puter models."/>
                     
                     <TextBlock Text="Puter Chat Model" FontWeight="SemiBold" Margin="0,8,0,0"/>
-                    <TextBox x:Name="PuterModelBox" PlaceholderText="infron:deepseek/deepseek-v4-flash:free"
-                             Width="400" TextWrapping="Wrap"/>
+                    <ComboBox x:Name="PuterModelBox" Width="400" CornerRadius="6" PlaceholderText="Select Puter chat model..."/>
                     
                     <TextBlock Text="Puter Vision Model (Image_Fetch_Puter)" FontWeight="SemiBold" Margin="0,4,0,0"/>
-                    <TextBox x:Name="PuterVisionBox" PlaceholderText="infron:deepseek/deepseek-v4-flash:free"
-                             Width="400" TextWrapping="Wrap"/>
+                    <ComboBox x:Name="PuterVisionBox" Width="400" CornerRadius="6" PlaceholderText="Select Puter vision model..."/>
                     
                     <TextBlock Text="Puter Image Gen Model (Image_Create_Puter)" FontWeight="SemiBold" Margin="0,4,0,0"/>
-                    <TextBox x:Name="PuterImageGenBox" PlaceholderText="infron:deepseek/deepseek-v4-flash:free"
-                             Width="400" TextWrapping="Wrap"/>
+                    <ComboBox x:Name="PuterImageGenBox" Width="400" CornerRadius="6" PlaceholderText="Select Puter image gen model..."/>
                     
                     <ComboBox x:Name="PuterEffortCombo" Header="Deep Thinking Effort" Width="200" SelectedIndex="2" CornerRadius="6">
                         <ComboBoxItem Content="low" Tag="low"/>

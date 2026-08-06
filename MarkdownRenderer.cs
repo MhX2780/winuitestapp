@@ -87,6 +87,49 @@ public static class MarkdownRenderer
                 continue;
             }
 
+            // ─── Markdown table detection ───
+            var tableLine = line.Trim();
+            if (tableLine.StartsWith("|") && tableLine.EndsWith("|"))
+            {
+                // Flush paragraph before table
+                if (currentParagraph.Inlines.Count > 0)
+                {
+                    blocks.Add(currentParagraph);
+                    currentParagraph = new Microsoft.UI.Xaml.Documents.Paragraph();
+                }
+
+                var tableRows = new List<List<string>>();
+                while (i < lines.Length)
+                {
+                    var tLine = lines[i].Trim();
+                    if (!tLine.StartsWith("|") || !tLine.EndsWith("|")) break;
+                    var cells = tLine.Trim('|').Split('|');
+                    var row = cells.Select(c => c.Trim()).ToList();
+                    tableRows.Add(row);
+                    i++;
+                }
+                i--; // step back for the outer loop
+
+                // Skip separator row (|---|---|)
+                var dataRows = new List<List<string>>();
+                bool skippedSep = false;
+                foreach (var r in tableRows)
+                {
+                    if (!skippedSep && r.All(c => Regex.IsMatch(c, @"^:?-+:?$")))
+                    {
+                        skippedSep = true;
+                        continue;
+                    }
+                    dataRows.Add(r);
+                }
+
+                if (dataRows.Count > 0)
+                {
+                    blocks.Add(CreateTable(dataRows));
+                }
+                continue;
+            }
+
             // Parse inline formatting into current paragraph
             ParseInlineLine(line, currentParagraph.Inlines);
             currentParagraph.Inlines.Add(new Microsoft.UI.Xaml.Documents.LineBreak());
@@ -145,6 +188,78 @@ public static class MarkdownRenderer
             results.Add((lang, code, firstLine));
         }
         return results;
+    }
+
+    // ─── Markdown Table ───
+
+    private static Microsoft.UI.Xaml.Documents.Paragraph CreateTable(List<List<string>> dataRows)
+    {
+        var paragraph = new Microsoft.UI.Xaml.Documents.Paragraph();
+
+        var border = new Microsoft.UI.Xaml.Controls.Border
+        {
+            Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(
+                Windows.UI.Color.FromArgb(255, 40, 40, 45)),
+            BorderBrush = new Microsoft.UI.Xaml.Media.SolidColorBrush(
+                Windows.UI.Color.FromArgb(255, 60, 60, 65)),
+            BorderThickness = new Microsoft.UI.Xaml.Thickness(1),
+            CornerRadius = new Microsoft.UI.Xaml.CornerRadius(6),
+            Padding = new Microsoft.UI.Xaml.Thickness(0),
+            HorizontalAlignment = Microsoft.UI.Xaml.HorizontalAlignment.Left,
+            MaxWidth = 650,
+        };
+
+        var stack = new Microsoft.UI.Xaml.Controls.StackPanel();
+        var numCols = dataRows.Max(r => r.Count);
+        var colWidth = new Microsoft.UI.Xaml.GridLength(1, Microsoft.UI.Xaml.GridUnitType.Star);
+
+        int rowIndex = 0;
+        foreach (var row in dataRows)
+        {
+            bool isHeader = rowIndex == 0;
+            var rowBorder = new Microsoft.UI.Xaml.Controls.Border
+            {
+                Background = isHeader
+                    ? new Microsoft.UI.Xaml.Media.SolidColorBrush(
+                        Windows.UI.Color.FromArgb(255, 55, 55, 60))
+                    : (rowIndex % 2 == 0
+                        ? new Microsoft.UI.Xaml.Media.SolidColorBrush(
+                            Windows.UI.Color.FromArgb(255, 45, 45, 50))
+                        : new Microsoft.UI.Xaml.Media.SolidColorBrush(
+                            Windows.UI.Color.FromArgb(255, 40, 40, 45))),
+                Padding = new Microsoft.UI.Xaml.Thickness(12, 6, 12, 6),
+            };
+
+            var rowGrid = new Microsoft.UI.Xaml.Controls.Grid();
+            for (int c = 0; c < numCols; c++)
+                rowGrid.ColumnDefinitions.Add(new Microsoft.UI.Xaml.Controls.ColumnDefinition { Width = colWidth });
+
+            for (int c = 0; c < row.Count && c < numCols; c++)
+            {
+                var cellText = new Microsoft.UI.Xaml.Controls.TextBlock
+                {
+                    Text = row[c],
+                    FontSize = isHeader ? 12 : 12,
+                    FontWeight = isHeader ? Microsoft.UI.Text.FontWeights.SemiBold : Microsoft.UI.Text.FontWeights.Normal,
+                    Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(
+                        Windows.UI.Color.FromArgb(255, 210, 210, 210)),
+                    TextWrapping = Microsoft.UI.Xaml.TextWrapping.Wrap,
+                    VerticalAlignment = Microsoft.UI.Xaml.VerticalAlignment.Center,
+                };
+                Microsoft.UI.Xaml.Controls.Grid.SetColumn(cellText, c);
+                rowGrid.Children.Add(cellText);
+            }
+
+            rowBorder.Child = rowGrid;
+            stack.Children.Add(rowBorder);
+            rowIndex++;
+        }
+
+        border.Child = stack;
+        var container = new Microsoft.UI.Xaml.Documents.InlineUIContainer { Child = border };
+        paragraph.Inlines.Add(container);
+        paragraph.Inlines.Add(new Microsoft.UI.Xaml.Documents.LineBreak());
+        return paragraph;
     }
 
     // ─── Horizontal Rule ───

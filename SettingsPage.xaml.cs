@@ -32,7 +32,6 @@ public sealed partial class SettingsPage : Page
                 }
             }
 
-            ModelChainBox.Text = string.Join(", ", ConfigManager.ModelChain.Select(m => m.Name));
             ModelChainBreadcrumb.ItemsSource = ConfigManager.ModelChain.Select(m => m.Name).ToArray();
             WorkspaceBox.Text = s.WorkspacePath;
             UpdateWsStatus();
@@ -51,9 +50,7 @@ public sealed partial class SettingsPage : Page
             PuterToolCalling.IsOn = s.PuterToolCallingEnabled;
             PuterImageTools.IsOn = s.PuterImageToolsEnabled;
             PuterDeepThinking.IsOn = s.PuterDeepThinkingEnabled;
-            PuterModelBox.Text = s.PuterFreeChatModel;
-            PuterVisionBox.Text = s.PuterVisionModel;
-            PuterImageGenBox.Text = s.PuterImageGenModel;
+            // Puter model boxes are now ComboBoxes - populated by LoadModelsAsync
             SetCombo(PuterEffortCombo, s.PuterDeepThinkingEffort);
 
             // Memory
@@ -246,13 +243,7 @@ public sealed partial class SettingsPage : Page
     {
         var s = ConfigManager.Settings;
 
-        // Model chain
-        var modelName = ((ComboBoxItem)ModelCombo.SelectedItem)?.Content?.ToString()
-            ?? "gemini-2.5-flash";
-        var chainNames = ModelChainBox.Text?.Split(
-            ',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-            ?? new[] { modelName };
-        s.ModelChain = chainNames.Select(n => new ModelChainEntry { Name = n }).ToList();
+        // Model chain - already updated via AddModelBtn/RemoveLastModelBtn and BreadcrumbBar\n        // Just persist current chain from ConfigManager\n        var chainNames = ConfigManager.ModelChain.Select(m => m.Name).ToList();
 
         // Workspace
         s.WorkspacePath = WorkspaceBox.Text?.Trim() ?? "";
@@ -293,9 +284,12 @@ public sealed partial class SettingsPage : Page
         s.PuterToolCallingEnabled = PuterToolCalling.IsOn;
         s.PuterImageToolsEnabled = PuterImageTools.IsOn;
         s.PuterDeepThinkingEnabled = PuterDeepThinking.IsOn;
-        s.PuterFreeChatModel = PuterModelBox.Text?.Trim() ?? "infron:deepseek/deepseek-v4-flash:free";
-        s.PuterVisionModel = PuterVisionBox.Text?.Trim() ?? "infron:deepseek/deepseek-v4-flash:free";
-        s.PuterImageGenModel = PuterImageGenBox.Text?.Trim() ?? "infron:deepseek/deepseek-v4-flash:free";
+        s.PuterFreeChatModel = ((ComboBoxItem)PuterModelBox.SelectedItem)?.Content?.ToString()
+            ?? s.PuterFreeChatModel;
+        s.PuterVisionModel = ((ComboBoxItem)PuterVisionBox.SelectedItem)?.Content?.ToString()
+            ?? s.PuterVisionModel;
+        s.PuterImageGenModel = ((ComboBoxItem)PuterImageGenBox.SelectedItem)?.Content?.ToString()
+            ?? s.PuterImageGenModel;
         s.PuterDeepThinkingEffort = ((ComboBoxItem)PuterEffortCombo.SelectedItem)?.Tag?.ToString() ?? "high";
 
         // Memory
@@ -354,7 +348,6 @@ public sealed partial class SettingsPage : Page
             FontFamily = new Microsoft.UI.Xaml.Media.FontFamily("Cascadia Code, Consolas, Courier New"),
             FontSize = 11,
             TextWrapping = TextWrapping.Wrap,
-            IsTextSelectionEnabled = true,
             Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.White),
         };
         dlg.Content = scrollViewer;
@@ -379,7 +372,7 @@ public sealed partial class SettingsPage : Page
         // Load Gemini models from default chain
         var geminiModels = ConfigManager.DefaultModelChain.Select(m => m.Name).ToList();
 
-        foreach (var combo in new[] { ModelCombo, ClassifierCombo, PlannerCombo, ExecutorCombo, ReviewerCombo })
+        foreach (var combo in new[] { ModelCombo, ClassifierCombo, PlannerCombo, ExecutorCombo, ReviewerCombo, AddModelCombo })
         {
             combo.Items.Clear();
             foreach (var model in geminiModels)
@@ -393,6 +386,9 @@ public sealed partial class SettingsPage : Page
         SetCombo(ExecutorCombo, ConfigManager.MultiAgentRoles?.GetValueOrDefault("executor") ?? "gemini-3.5-flash");
         SetCombo(ReviewerCombo, ConfigManager.MultiAgentRoles?.GetValueOrDefault("reviewer") ?? "gemini-2.5-flash-lite");
 
+        // Populate BreadcrumbBar
+        UpdateBreadcrumbBar();
+
         // Load Puter models if token exists
         var token = ConfigManager.LoadPuterToken();
         if (!string.IsNullOrEmpty(token))
@@ -401,12 +397,92 @@ public sealed partial class SettingsPage : Page
             {
                 using var puter = new PuterService();
                 var puterModels = await puter.ListModelsAsync();
-                PuterModelsStatus.Text = $"Puter: {puterModels.Count} models loaded. Use List buttons to browse.";
+                PuterModelsStatus.Text = $"Puter: {puterModels.Count} models loaded.";
+
+                // Add Puter models to ALL model ComboBoxes (Gemini + Puter combined)
+                foreach (var combo in new[] { ModelCombo, ClassifierCombo, PlannerCombo, ExecutorCombo, ReviewerCombo, AddModelCombo })
+                {
+                    combo.Items.Add(new ComboBoxItem
+                    {
+                        Content = "── Puter.js Models ──",
+                        IsEnabled = false,
+                    });
+                    foreach (var model in puterModels)
+                        combo.Items.Add(new ComboBoxItem { Content = model });
+                }
+
+                // Populate Puter-specific comboboxes (chat, vision, image gen)
+                var chatModels = puterModels.ToList();
+                foreach (var m in chatModels)
+                    PuterModelBox.Items.Add(new ComboBoxItem { Content = m });
+                SetCombo(PuterModelBox, ConfigManager.Settings.PuterFreeChatModel);
+
+                // Vision models: filter by known vision keywords or show all
+                var visionKeywords = new[] { "vision", "vlm", "multimodal", "gpt-4o", "claude-3", "gemini" };
+                var visionModels = puterModels.Where(m =>
+                    visionKeywords.Any(k => m.ToLowerInvariant().Contains(k.ToLowerInvariant()))).ToList();
+                if (visionModels.Count == 0) visionModels = puterModels; // fallback: show all
+                foreach (var m in visionModels)
+                    PuterVisionBox.Items.Add(new ComboBoxItem { Content = m });
+                SetCombo(PuterVisionBox, ConfigManager.Settings.PuterVisionModel);
+
+                // Image gen models: filter by known keywords
+                var imgKeywords = new[] { "dall-e", "image", "img", "flux", "stable", "sd", "paint", "draw" };
+                var imgModels = puterModels.Where(m =>
+                    imgKeywords.Any(k => m.ToLowerInvariant().Contains(k.ToLowerInvariant()))).ToList();
+                if (imgModels.Count == 0) imgModels = puterModels; // fallback: show all
+                foreach (var m in imgModels)
+                    PuterImageGenBox.Items.Add(new ComboBoxItem { Content = m });
+                SetCombo(PuterImageGenBox, ConfigManager.Settings.PuterImageGenModel);
             }
             catch
             {
                 PuterModelsStatus.Text = "Puter token set but couldn't fetch models. Will retry on demand.";
             }
+        }
+    }
+
+    private void UpdateBreadcrumbBar()
+    {
+        var chain = ConfigManager.ModelChain;
+        var items = new List<Microsoft.UI.Xaml.Controls.BreadcrumbBarItem>();
+        foreach (var entry in chain)
+        {
+            items.Add(new Microsoft.UI.Xaml.Controls.BreadcrumbBarItem
+            {
+                Text = entry.Name,
+                Tag = entry,
+            });
+        }
+        ModelChainBreadcrumb.ItemsSource = items;
+    }
+
+    private void AddModelBtn_Click(object sender, RoutedEventArgs e)
+    {
+        if (AddModelCombo.SelectedItem is ComboBoxItem item && !string.IsNullOrEmpty(item.Content?.ToString()))
+        {
+            var name = item.Content.ToString()!;
+            if (name == "── Puter.js Models ──") return;
+
+            var chain = ConfigManager.ModelChain.ToList();
+            // Avoid duplicates
+            if (chain.Any(m => m.Name == name)) return;
+            chain.Add(new ModelChainEntry { Name = name });
+            ConfigManager.Settings.ModelChain = chain;
+            UpdateBreadcrumbBar();
+            CrashLogger.Log("INFO", $"Added model to chain: {name}");
+        }
+    }
+
+    private void RemoveLastModelBtn_Click(object sender, RoutedEventArgs e)
+    {
+        var chain = ConfigManager.ModelChain.ToList();
+        if (chain.Count > 1)
+        {
+            chain.RemoveAt(chain.Count - 1);
+            ConfigManager.Settings.ModelChain = chain;
+            UpdateBreadcrumbBar();
+            CrashLogger.Log("INFO", "Removed last model from chain");
         }
     }
 

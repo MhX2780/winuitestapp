@@ -31,6 +31,12 @@ public class ChatMessage
     // Deep Thinking display
     public bool IsDeepThinking { get; set; } = false;
     public string? ThinkingContent { get; set; }
+    // Consolidated system action card (groups tool results, file ops, etc.)
+    public bool IsSystemAction { get; set; } = false;
+    public List<string>? ActionItems { get; set; }
+    // Multi-agent task list
+    public bool IsTaskList { get; set; } = false;
+    public List<TaskItem>? TaskItems { get; set; }
 }
 
 // Tool call log entry (execution log)
@@ -158,6 +164,14 @@ public class ModelUsageStats
     public int Successes { get; set; }
     public int Failures { get; set; }
     public int QuotaExhausted { get; set; }
+}
+
+// Task item for multi-agent task list display
+public class TaskItem
+{
+    public string Description { get; set; } = "";
+    public string Status { get; set; } = "pending"; // pending, running, done, failed
+    public string? Result { get; set; }
 }
 
 // Provider definition

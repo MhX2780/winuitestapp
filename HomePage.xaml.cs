@@ -57,15 +57,22 @@ public sealed partial class HomePage : Page
     {
         if (e.Key == Windows.System.VirtualKey.Enter)
         {
-            var ctrlState = Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(Windows.System.VirtualKey.Shift);
-            bool shiftHeld = ctrlState.HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down);
+            var shiftState = Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(Windows.System.VirtualKey.Shift);
+            bool shiftHeld = (shiftState & Microsoft.UI.Input.VirtualKeyStates.Down) == Microsoft.UI.Input.VirtualKeyStates.Down;
             if (!shiftHeld)
             {
-                // Enter alone → send, Shift+Enter → new line
                 e.Handled = true;
                 _ = SendMessageAsync();
             }
-            // else: let Shift+Enter insert new line (default behavior)
+            else
+            {
+                // Shift+Enter: insert newline manually since AcceptsReturn=False
+                e.Handled = true;
+                var tb = (TextBox)sender;
+                var caret = tb.SelectionStart;
+                tb.Text = tb.Text.Insert(caret, "\r");
+                tb.SelectionStart = caret + 1;
+            }
         }
     }
 
@@ -487,6 +494,8 @@ public sealed partial class HomePage : Page
                 last.ToolSuccess = ok;
                 last.ToolCallStatus = ok ? "done" : "failed";
             }
+            // Consolidate system/tool messages into a single action card
+            ConsolidateSystemActions();
             Bind();
             ScrollBottom();
         });
@@ -524,24 +533,50 @@ public sealed partial class HomePage : Page
                     var totalSteps = evt.Data?.GetValueOrDefault("total_steps")?.ToString() ?? "?";
                     var desc = evt.Data?.GetValueOrDefault("description")?.ToString() ?? "";
                     StatusText.Text = $"Step {stepNum}/{totalSteps}: {desc}";
-                    _messages.Add(new()
+
+                    // Find or create the task list card
+                    var taskCard = _messages.LastOrDefault(m => m.IsTaskList);
+                    if (taskCard == null)
                     {
-                        Role = "tool", Content = $"Step {stepNum}: {desc}",
-                        IsToolCall = true, ToolName = $"Step {stepNum}",
-                        ToolCallStatus = "running"
+                        taskCard = new ChatMessage
+                        {
+                            Role = "system",
+                            Content = "Task Plan",
+                            IsTaskList = true,
+                            TaskItems = new List<TaskItem>()
+                        };
+                        _messages.Add(taskCard);
+                    }
+
+                    // Add new task item
+                    taskCard.TaskItems.Add(new TaskItem
+                    {
+                        Description = $"Step {stepNum}: {desc}",
+                        Status = "running"
                     });
+                    taskCard.Content = $"Executing step {stepNum}/{totalSteps}...";
                     Bind();
                     ScrollBottom();
                     break;
                 case "step_done":
                     var doneNum = evt.Data?.GetValueOrDefault("step_number")?.ToString() ?? "?";
+                    var doneDesc = evt.Data?.GetValueOrDefault("description")?.ToString() ?? "";
+                    var doneSuccess = evt.Data?.GetValueOrDefault("success")?.ToString() ?? "True";
                     StatusText.Text = $"Step {doneNum} done";
-                    var lastStep = _messages.LastOrDefault(m => m.IsToolCall && m.ToolName == $"Step {doneNum}");
-                    if (lastStep != null)
+
+                    var tlCard = _messages.LastOrDefault(m => m.IsTaskList);
+                    if (tlCard?.TaskItems != null)
                     {
-                        lastStep.Content = "Completed";
-                        lastStep.ToolCallStatus = "done";
-                        lastStep.ToolSuccess = true;
+                        var taskItem = tlCard.TaskItems.FirstOrDefault(t => t.Description.Contains($"Step {doneNum}"));
+                        if (taskItem != null)
+                        {
+                            taskItem.Status = doneSuccess?.ToString() == "True" ? "done" : "failed";
+                            taskItem.Result = doneDesc;
+                        }
+                        // Count progress
+                        var completed = tlCard.TaskItems.Count(t => t.Status is "done" or "failed").ToString();
+                        var total = tlCard.TaskItems.Count.ToString();
+                        tlCard.Content = $"Progress: {completed}/{total} steps completed";
                     }
                     Bind();
                     ScrollBottom();
@@ -574,6 +609,49 @@ public sealed partial class HomePage : Page
 
             // Notify ArtifactsPage to refresh (if it exists in the nav frame cache)
             NotifyArtifactsRefresh();
+        });
+    }
+
+    /// <summary>
+    /// Consolidates consecutive tool/system messages into a single IsSystemAction card.
+    /// Groups: tool calls (done/failed), system messages with content like "Created file...", "Edited...".
+    /// </summary>
+    private void ConsolidateSystemActions()
+    {
+        if (_messages.Count < 2) return;
+        var actions = new List<string>();
+        int i = _messages.Count - 1;
+
+        // Walk backwards collecting consecutive tool/system messages
+        while (i >= 0)
+        {
+            var msg = _messages[i];
+            if (msg.IsToolCall && msg.ToolCallStatus != "running")
+            {
+                var icon = msg.ToolSuccess ? "\u2713" : "\u2717";
+                actions.Add($"{icon} {msg.ToolName}: {msg.Content}");
+                i--;
+            }
+            else if (msg.Role == "system" && !string.IsNullOrEmpty(msg.Content))
+            {
+                actions.Add(msg.Content);
+                i--;
+            }
+            else break;
+        }
+
+        if (actions.Count < 2) return;
+
+        // Remove the collected messages (from i+1 to end)
+        _messages.RemoveRange(i + 1, _messages.Count - (i + 1));
+
+        // Add single consolidated card
+        _messages.Add(new ChatMessage
+        {
+            Role = "system",
+            Content = string.Join("\n", actions),
+            IsSystemAction = true,
+            ActionItems = actions
         });
     }
 

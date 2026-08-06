@@ -49,10 +49,12 @@
                             <RowDefinition Height="Auto"/>
                             <RowDefinition Height="Auto"/>
                             <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
                         </Grid.RowDefinitions>
 
-                        <!-- User message bubble (right-aligned, black text) -->
-                        <Border x:Name="UserBubble" Grid.Row="0"
+                        <!-- User message bubble (right-aligned) -->
+                        <Border Grid.Row="0"
                                 Background="{ThemeResource AccentFillColorDefaultBrush}"
                                 CornerRadius="12,12,4,12" Padding="14,10"
                                 HorizontalAlignment="Right" MaxWidth="700" Margin="60,0,0,0">
@@ -63,7 +65,7 @@
                                        Foreground="Black"/>
                         </Border>
 
-                        <!-- Model response (left-aligned, NO bubble, with Markdown) -->
+                        <!-- Model response (left-aligned, with Markdown) -->
                         <StackPanel Grid.Row="1" HorizontalAlignment="Left" MaxWidth="700" Margin="0,0,60,0">
                             <StackPanel.Visibility>
                                 <Binding Path="Role" Converter="{StaticResource RoleToVisibilityConverter}" ConverterParameter="model"/>
@@ -76,7 +78,7 @@
                                            DataContextChanged="ModelRichText_DataContextChanged"/>
                         </StackPanel>
 
-                        <!-- Tool call card -->
+                        <!-- Tool call RUNNING card -->
                         <Border Grid.Row="2"
                                 Background="{ThemeResource CardBackgroundFillColorSecondaryBrush}"
                                 BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
@@ -84,30 +86,12 @@
                                 CornerRadius="8" Padding="12,10"
                                 HorizontalAlignment="Left" MaxWidth="700" Margin="0,0,60,0">
                             <Border.Visibility>
-                                <Binding Path="IsToolCall" Converter="{StaticResource BoolToVisibilityConverter}"/>
+                                <Binding Path="IsToolRunning" Converter="{StaticResource BoolToVisibilityConverter}"/>
                             </Border.Visibility>
                             <StackPanel Spacing="4">
                                 <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
                                     <ProgressRing Width="16" Height="16"
-                                                  Foreground="{ThemeResource AccentFillColorDefaultBrush}">
-                                        <ProgressRing.Visibility>
-                                            <Binding Path="IsToolRunning" Converter="{StaticResource BoolToVisibilityConverter}"/>
-                                        </ProgressRing.Visibility>
-                                    </ProgressRing>
-                                    <FontIcon Glyph="&#xE73E;" FontSize="16"
-                                              Foreground="{ThemeResource SystemFillColorSuccessBrush}"
-                                              VerticalAlignment="Center">
-                                        <FontIcon.Visibility>
-                                            <Binding Path="IsToolDone" Converter="{StaticResource BoolToVisibilityConverter}"/>
-                                        </FontIcon.Visibility>
-                                    </FontIcon>
-                                    <FontIcon Glyph="&#xE711;" FontSize="16"
-                                              Foreground="{ThemeResource SystemFillColorCriticalBrush}"
-                                              VerticalAlignment="Center">
-                                        <FontIcon.Visibility>
-                                            <Binding Path="IsToolFailed" Converter="{StaticResource BoolToVisibilityConverter}"/>
-                                        </FontIcon.Visibility>
-                                    </FontIcon>
+                                                  Foreground="{ThemeResource AccentFillColorDefaultBrush}"/>
                                     <TextBlock Text="{x:Bind ToolName}" FontSize="13" FontWeight="SemiBold"
                                                Foreground="{ThemeResource TextFillColorPrimaryBrush}"
                                                VerticalAlignment="Center"/>
@@ -118,13 +102,85 @@
                             </StackPanel>
                         </Border>
 
-                        <!-- Deep Thinking card -->
+                        <!-- System action consolidated card -->
                         <Border Grid.Row="3"
+                                Background="{ThemeResource CardBackgroundFillColorSecondaryBrush}"
+                                BorderBrush="{ThemeResource SystemFillColorSuccessBrush}"
+                                BorderThickness="1"
+                                CornerRadius="8" Padding="12,10"
+                                HorizontalAlignment="Left" MaxWidth="700" Margin="0,2,60,0">
+                            <Border.Visibility>
+                                <Binding Path="IsSystemAction" Converter="{StaticResource BoolToVisibilityConverter}"/>
+                            </Border.Visibility>
+                            <StackPanel Spacing="6">
+                                <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                                    <FontIcon Glyph="&#xE73E;" FontSize="16"
+                                              Foreground="{ThemeResource SystemFillColorSuccessBrush}"
+                                              VerticalAlignment="Center"/>
+                                    <TextBlock Text="Actions Completed" FontSize="13" FontWeight="SemiBold"
+                                               Foreground="{ThemeResource TextFillColorPrimaryBrush}"
+                                               VerticalAlignment="Center"/>
+                                </StackPanel>
+                                <ItemsControl ItemsSource="{x:Bind ActionItems}" Margin="24,2,0,0">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <TextBlock Text="{Binding}" FontSize="12" Opacity="0.8"
+                                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                                       TextWrapping="Wrap" IsTextSelectionEnabled="True"
+                                                       Margin="0,2,0,2"/>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Multi-agent task list card -->
+                        <Border Grid.Row="4"
+                                Background="{ThemeResource CardBackgroundFillColorSecondaryBrush}"
+                                BorderBrush="{ThemeResource AccentFillColorDefaultBrush}"
+                                BorderThickness="1"
+                                CornerRadius="8" Padding="12,10"
+                                HorizontalAlignment="Left" MaxWidth="700" Margin="0,2,60,0">
+                            <Border.Visibility>
+                                <Binding Path="IsTaskList" Converter="{StaticResource BoolToVisibilityConverter}"/>
+                            </Border.Visibility>
+                            <StackPanel Spacing="6">
+                                <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                                    <FontIcon Glyph="&#xE9D9;" FontSize="16"
+                                              Foreground="{ThemeResource AccentFillColorDefaultBrush}"
+                                              VerticalAlignment="Center"/>
+                                    <TextBlock Text="{x:Bind Content}" FontSize="13" FontWeight="SemiBold"
+                                               Foreground="{ThemeResource TextFillColorPrimaryBrush}"
+                                               VerticalAlignment="Center"/>
+                                </StackPanel>
+                                <ItemsControl ItemsSource="{x:Bind TaskItems}" Margin="24,2,0,0">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,3,0,3">
+                                                <FontIcon x:Name="TaskIcon" Glyph="&#xE73E;" FontSize="14"
+                                                          Foreground="{ThemeResource SystemFillColorSuccessBrush}"
+                                                          VerticalAlignment="Center"/>
+                                                <ProgressRing x:Name="TaskSpinner" Width="14" Height="14"
+                                                              Foreground="{ThemeResource AccentFillColorDefaultBrush}"
+                                                              IsActive="True"
+                                                              VerticalAlignment="Center"/>
+                                                <TextBlock Text="{Binding Description}" FontSize="12"
+                                                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                                           TextWrapping="Wrap" VerticalAlignment="Center"/>
+                                            </StackPanel>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Deep Thinking card -->
+                        <Border Grid.Row="5"
                                 Background="{ThemeResource CardBackgroundFillColorSecondaryBrush}"
                                 BorderBrush="{ThemeResource SystemFillColorAttentionBrush}"
                                 BorderThickness="1"
                                 CornerRadius="8" Padding="12,10"
-                                HorizontalAlignment="Left" MaxWidth="700" Margin="0,0,60,0">
+                                HorizontalAlignment="Left" MaxWidth="700" Margin="0,2,60,0">
                             <Border.Visibility>
                                 <Binding Path="IsDeepThinking" Converter="{StaticResource BoolToVisibilityConverter}"/>
                             </Border.Visibility>
@@ -189,7 +245,7 @@
                     </Grid.ColumnDefinitions>
                     <TextBox x:Name="InputTextBox"
                              PlaceholderText="Type your message..."
-                             AcceptsReturn="True" TextWrapping="Wrap"
+                             AcceptsReturn="False" TextWrapping="Wrap"
                              MaxHeight="150" MinHeight="44"
                              KeyDown="InputTextBox_KeyDown" FontSize="15"
                              Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"/>

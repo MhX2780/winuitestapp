@@ -1,7 +1,6 @@
 using Microsoft.UI;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
-using Microsoft.UI.Xaml.Media;
 
 namespace UGA;
 
@@ -30,8 +29,7 @@ public partial class App : Application
         {
             // Show loading screen first
             var window = new MainWindow();
-            // MicaBackdrop: lightweight, no rendering freeze (DesktopAcrylicBackdrop causes hangs)
-            window.SystemBackdrop = new Microsoft.UI.Xaml.Media.MicaBackdrop();
+            // No backdrop — avoids all composition/rendering issues
             MainWindow = window;
             window.Activate();
 

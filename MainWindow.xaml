@@ -15,7 +15,7 @@
         Loaded="RootNav_Loaded"
         OpenPaneLength="260"
         CompactPaneLength="48"
-        Background="Transparent"
+        Background="{ThemeResource NavigationViewDefaultPaneBackgroundBrush}"
         IsPaneToggleButtonVisible="True"
         IsTitleBarAutoPaddingEnabled="False"
         AlwaysShowHeader="False"

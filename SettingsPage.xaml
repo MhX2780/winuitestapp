@@ -212,13 +212,16 @@
                                   ToolTipService.ToolTip="Enable reasoning_effort parameter for reasoning-capable Puter models."/>
                     
                     <TextBlock Text="Puter Chat Model" FontWeight="SemiBold" Margin="0,8,0,0"/>
-                    <ComboBox x:Name="PuterModelBox" Width="400" CornerRadius="6" PlaceholderText="Select Puter chat model..."/>
+                    <AutoSuggestBox x:Name="PuterModelBox" Width="400" PlaceholderText="Type to search Puter chat model..."
+                                   TextChanged="PuterSuggest_TextChanged" SuggestionChosen="PuterSuggest_Chosen"/>
                     
                     <TextBlock Text="Puter Vision Model (Image_Fetch_Puter)" FontWeight="SemiBold" Margin="0,4,0,0"/>
-                    <ComboBox x:Name="PuterVisionBox" Width="400" CornerRadius="6" PlaceholderText="Select Puter vision model..."/>
+                    <AutoSuggestBox x:Name="PuterVisionBox" Width="400" PlaceholderText="Type to search Puter vision model..."
+                                   TextChanged="PuterSuggest_TextChanged" SuggestionChosen="PuterSuggest_Chosen"/>
                     
                     <TextBlock Text="Puter Image Gen Model (Image_Create_Puter)" FontWeight="SemiBold" Margin="0,4,0,0"/>
-                    <ComboBox x:Name="PuterImageGenBox" Width="400" CornerRadius="6" PlaceholderText="Select Puter image gen model..."/>
+                    <AutoSuggestBox x:Name="PuterImageGenBox" Width="400" PlaceholderText="Type to search Puter image gen model..."
+                                   TextChanged="PuterSuggest_TextChanged" SuggestionChosen="PuterSuggest_Chosen"/>
                     
                     <ComboBox x:Name="PuterEffortCombo" Header="Deep Thinking Effort" Width="200" SelectedIndex="2" CornerRadius="6">
                         <ComboBoxItem Content="low" Tag="low"/>

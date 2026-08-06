@@ -7,6 +7,8 @@ namespace UGA;
 
 public sealed partial class SettingsPage : Page
 {
+    // All Puter model names (fetched once, used for autocomplete suggestions)
+    private static List<string> _puterAllModels = new();
     public SettingsPage()
     {
         this.InitializeComponent();
@@ -87,7 +89,10 @@ public sealed partial class SettingsPage : Page
             PuterToolCalling.IsOn = s.PuterToolCallingEnabled;
             PuterImageTools.IsOn = s.PuterImageToolsEnabled;
             PuterDeepThinking.IsOn = s.PuterDeepThinkingEnabled;
-            // Puter model boxes are now ComboBoxes - populated by LoadModelsAsync
+            // Puter model AutoSuggestBoxes — just set Text directly (no ComboBox)
+            PuterModelBox.Text = s.PuterFreeChatModel;
+            PuterVisionBox.Text = s.PuterVisionModel;
+            PuterImageGenBox.Text = s.PuterImageGenModel;
             SetCombo(PuterEffortCombo, s.PuterDeepThinkingEffort);
 
             // Memory
@@ -320,12 +325,9 @@ public sealed partial class SettingsPage : Page
         s.PuterToolCallingEnabled = PuterToolCalling.IsOn;
         s.PuterImageToolsEnabled = PuterImageTools.IsOn;
         s.PuterDeepThinkingEnabled = PuterDeepThinking.IsOn;
-        s.PuterFreeChatModel = ((ComboBoxItem)PuterModelBox.SelectedItem)?.Content?.ToString()
-            ?? s.PuterFreeChatModel;
-        s.PuterVisionModel = ((ComboBoxItem)PuterVisionBox.SelectedItem)?.Content?.ToString()
-            ?? s.PuterVisionModel;
-        s.PuterImageGenModel = ((ComboBoxItem)PuterImageGenBox.SelectedItem)?.Content?.ToString()
-            ?? s.PuterImageGenModel;
+        s.PuterFreeChatModel = PuterModelBox.Text?.Trim() ?? s.PuterFreeChatModel;
+        s.PuterVisionModel = PuterVisionBox.Text?.Trim() ?? s.PuterVisionModel;
+        s.PuterImageGenModel = PuterImageGenBox.Text?.Trim() ?? s.PuterImageGenModel;
         s.PuterDeepThinkingEffort = ((ComboBoxItem)PuterEffortCombo.SelectedItem)?.Tag?.ToString() ?? "high";
 
         // Memory
@@ -429,7 +431,7 @@ public sealed partial class SettingsPage : Page
     }
 
     /// <summary>
-    /// Fetches Puter models from network and adds them to combos.
+    /// Fetches Puter models from network and stores them for autocomplete.
     /// MUST be called from a background thread (Task.Run). Uses DispatcherQueue for UI updates.
     /// </summary>
     private async System.Threading.Tasks.Task LoadPuterModelsAsync()
@@ -455,53 +457,42 @@ public sealed partial class SettingsPage : Page
             }
         }
 
-        // Dispatch all UI updates back to the UI thread
+        // Store all models for autocomplete filtering
+        _puterAllModels = puterModels;
+
+        // Dispatch UI status update
         DispatcherQueue.TryEnqueue(() =>
         {
             try
             {
-                PuterModelsStatus.Text = $"Puter: {puterModels.Count} models loaded.";
-
-                // Add Puter models to ALL model ComboBoxes
-                foreach (var combo in new[] { ModelCombo, ClassifierCombo, PlannerCombo, ExecutorCombo, ReviewerCombo, AddModelCombo })
-                {
-                    combo.Items.Add(new ComboBoxItem
-                    {
-                        Content = "── Puter.js Models ──",
-                        IsEnabled = false,
-                    });
-                    foreach (var model in puterModels)
-                        combo.Items.Add(new ComboBoxItem { Content = model });
-                }
-
-                // Puter-specific comboboxes
-                foreach (var m in puterModels)
-                    PuterModelBox.Items.Add(new ComboBoxItem { Content = m });
-                SetCombo(PuterModelBox, ConfigManager.Settings.PuterFreeChatModel);
-
-                // Vision models
-                var visionKeywords = new[] { "vision", "vlm", "multimodal", "gpt-4o", "claude-3", "gemini" };
-                var visionModels = puterModels.Where(m =>
-                    visionKeywords.Any(k => m.ToLowerInvariant().Contains(k.ToLowerInvariant()))).ToList();
-                if (visionModels.Count == 0) visionModels = puterModels;
-                foreach (var m in visionModels)
-                    PuterVisionBox.Items.Add(new ComboBoxItem { Content = m });
-                SetCombo(PuterVisionBox, ConfigManager.Settings.PuterVisionModel);
-
-                // Image gen models
-                var imgKeywords = new[] { "dall-e", "image", "img", "flux", "stable", "sd", "paint", "draw" };
-                var imgModels = puterModels.Where(m =>
-                    imgKeywords.Any(k => m.ToLowerInvariant().Contains(k.ToLowerInvariant()))).ToList();
-                if (imgModels.Count == 0) imgModels = puterModels;
-                foreach (var m in imgModels)
-                    PuterImageGenBox.Items.Add(new ComboBoxItem { Content = m });
-                SetCombo(PuterImageGenBox, ConfigManager.Settings.PuterImageGenModel);
+                PuterModelsStatus.Text = $"Puter: {puterModels.Count} models available. Type to search.";
             }
             catch (Exception ex)
             {
                 CrashLogger.Log("WARN", $"Puter UI update failed: {ex.Message}");
             }
         });
+    }
+
+    /// <summary>
+    /// AutoSuggestBox TextChanged — filters _puterAllModels as user types.
+    /// </summary>
+    private void PuterSuggest_TextChanged(AutoSuggestBox sender, AutoSuggestBoxTextChangedEventArgs args)
+    {
+        if (args.Reason != AutoSuggestionBoxTextChangeReason.UserInput) return;
+        var query = sender.Text?.ToLowerInvariant() ?? "";
+        sender.ItemsSource = string.IsNullOrEmpty(query)
+            ? _puterAllModels.Take(50).ToList()
+            : _puterAllModels.Where(m => m.ToLowerInvariant().Contains(query)).Take(30).ToList();
+    }
+
+    /// <summary>
+    /// AutoSuggestBox SuggestionChosen — fills textbox with selected model name.
+    /// </summary>
+    private void PuterSuggest_Chosen(AutoSuggestBox sender, AutoSuggestBoxSuggestionChosenEventArgs args)
+    {
+        if (args.SelectedItem is string chosen)
+            sender.Text = chosen;
     }
 
     private void UpdateBreadcrumbBar()
@@ -664,7 +655,8 @@ public sealed partial class SettingsPage : Page
         {
             using var puter = new PuterService();
             var models = await puter.ListModelsAsync();
-            PuterModelsStatus.Text = $"Found {models.Count} models. First 20: {string.Join(", ", models.Take(20))}";
+            _puterAllModels = models;
+            PuterModelsStatus.Text = $"Found {models.Count} models. Type in the search boxes above to filter.";
         }
         catch (Exception ex)
         {
@@ -689,7 +681,8 @@ public sealed partial class SettingsPage : Page
         {
             using var puter = new PuterService();
             var models = await puter.ListFreeModelsAsync();
-            PuterModelsStatus.Text = $"Found {models.Count} free models: {string.Join(", ", models.Take(20))}";
+            _puterAllModels = models;
+            PuterModelsStatus.Text = $"Found {models.Count} free models. Type to search.";
         }
         catch (Exception ex)
         {

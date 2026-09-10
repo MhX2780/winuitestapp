@@ -431,6 +431,10 @@ public sealed partial class HomePage : Page
                 TaskbarProgress.Clear();
                 StatusText.Text = "Ready";
                 SaveChatHistory();
+
+                // Multi-Agent path bypasses OnDone(), so refresh Artifacts here too
+                // or code blocks from MA responses won't show up until re-navigating.
+                NotifyArtifactsRefresh();
             }
         }
         catch (OperationCanceledException) { }

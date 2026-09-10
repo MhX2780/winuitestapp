@@ -5,9 +5,13 @@
     xmlns:local="using:UGA">
 
     <Grid Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
-        <ScrollViewer x:Name="SettingsScroll" Padding="32,24,32,32"
-                     HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
-        <StackPanel Spacing="24" MaxWidth="800" HorizontalAlignment="Stretch">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+        <ScrollViewer x:Name="SettingsScroll" Grid.Row="0" Padding="32,24,32,32"
+                     HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto"
+                     VerticalAlignment="Stretch" HorizontalAlignment="Stretch">
+        <StackPanel Spacing="24" MaxWidth="800" HorizontalAlignment="Stretch" VerticalAlignment="Top">
 
             <!-- ═══ API Key ═══ -->
             <TextBlock Text="API Configuration" FontSize="22" FontWeight="Bold"

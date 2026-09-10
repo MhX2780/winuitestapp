@@ -779,8 +779,23 @@ public class MultiAgentOrchestrator
     // ── Step Execution (uses full tool-calling loop) ──
     private async Task<string> ExecuteStepAsync(List<Dictionary<string, object>> history, string model, CancellationToken ct)
     {
+        // history already contains the step's user message as its only entry
+        // (built by RunAsync). Pass an EMPTY history + the message text as
+        // userMessage, since SendStreamingAsync appends userMessage to history
+        // itself — passing both would duplicate the same user turn twice.
+        var stepText = history.Count > 0
+            && history[0].TryGetValue("parts", out var partsObj)
+            && partsObj is List<object> parts
+            && parts.Count > 0
+            && parts[0] is Dictionary<string, object> p
+            && p.TryGetValue("text", out var t)
+            ? t?.ToString() ?? ""
+            : "";
+
         var service = new GeminiService();
-        return await service.SendStreamingAsync(history, history.First()?["parts"] is List<object> parts && parts.First() is Dictionary<string, object> p && p.ContainsKey("text") ? p["text"]?.ToString() ?? "" : "", ct);
+        if (!string.IsNullOrWhiteSpace(model))
+            service.CurrentModel = model; // honor the configured "Executor" role model
+        return await service.SendStreamingAsync(new List<Dictionary<string, object>>(), stepText, ct);
     }
 
     // ── Review ──

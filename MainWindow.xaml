@@ -64,7 +64,11 @@
         </NavigationView.FooterMenuItems>
 
         <Grid>
-            <Frame x:Name="ContentFrame" CacheSize="3"/>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="*"/>
+            </Grid.RowDefinitions>
+            <Frame x:Name="ContentFrame" Grid.Row="0" CacheSize="3"
+                   VerticalAlignment="Stretch" HorizontalAlignment="Stretch"/>
         </Grid>
     </NavigationView>
 </Window>

@@ -17,11 +17,17 @@ public sealed partial class SettingsPage : Page
 
     private void SettingsPage_Loaded(object sender, RoutedEventArgs e)
     {
-        try { LoadUI(); }
-        catch (Exception ex) { CrashLogger.Log("ERROR", $"LoadUI failed: {ex.Message}"); }
+        CrashLogger.Log("INFO", "SettingsPage_Loaded: start");
 
-        try { LoadGeminiModels(); }
-        catch (Exception ex) { CrashLogger.Log("ERROR", $"LoadGeminiModels failed: {ex.Message}"); }
+        // Populate the model combos FIRST — LoadUI() below selects items inside
+        // them, so the combos must already contain items or the selection is a no-op.
+        try { LoadGeminiModels(); CrashLogger.Log("INFO", "SettingsPage_Loaded: LoadGeminiModels done"); }
+        catch (Exception ex) { CrashLogger.Log("ERROR", $"LoadGeminiModels failed: {ex.GetType().Name}: {ex.Message}\n{ex.StackTrace}"); }
+
+        try { LoadUI(); CrashLogger.Log("INFO", "SettingsPage_Loaded: LoadUI done"); }
+        catch (Exception ex) { CrashLogger.Log("ERROR", $"LoadUI failed: {ex.GetType().Name}: {ex.Message}\n{ex.StackTrace}"); }
+
+        CrashLogger.Log("INFO", "SettingsPage_Loaded: end");
     }
 
     private void LoadUI()
@@ -256,7 +262,20 @@ public sealed partial class SettingsPage : Page
     {
         var s = ConfigManager.Settings;
 
-        // Model chain - already updated via AddModelBtn/RemoveLastModelBtn and BreadcrumbBar\n        // Just persist current chain from ConfigManager\n        var chainNames = ConfigManager.ModelChain.Select(m => m.Name).ToList();
+        // Primary Model — ModelCombo selects/moves the chosen model to the
+        // front of the chain, so it's the one actually used first when chatting.
+        if (ModelCombo.SelectedItem is ComboBoxItem primaryItem
+            && primaryItem.Content?.ToString() is string primaryName
+            && !string.IsNullOrWhiteSpace(primaryName))
+        {
+            var chain = ConfigManager.ModelChain.ToList();
+            var existing = chain.FirstOrDefault(m => m.Name == primaryName);
+            if (existing != null)
+                chain.Remove(existing);
+            chain.Insert(0, existing ?? new ModelChainEntry { Name = primaryName });
+            ConfigManager.Settings.ModelChain = chain;
+            UpdateBreadcrumbBar();
+        }
 
         // Workspace
         s.WorkspacePath = WorkspaceBox.Text?.Trim() ?? "";

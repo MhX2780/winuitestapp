@@ -178,15 +178,57 @@ public static class MarkdownRenderer
         var results = new List<(string, string, string)>();
         if (string.IsNullOrEmpty(markdown)) return results;
 
-        var matches = Regex.Matches(markdown, @"```(\w*)\n([\s\S]*?)```");
-        foreach (Match m in matches)
+        // Line-by-line fence detection (mirrors ParseBlocks) instead of a single
+        // regex — the old regex required a "\n" immediately after the opening
+        // fence/language tag, so single-line code blocks or blocks missing a
+        // closing fence (e.g. cut off mid-stream) were silently skipped, causing
+        // code visible in the chat to not appear on the Artifacts page at all.
+        var lines = markdown.Replace("\r\n", "\n").Split('\n');
+        var inCodeBlock = false;
+        var codeLines = new List<string>();
+        var codeLang = "";
+
+        void Flush()
         {
-            var lang = m.Groups[1].Value;
-            var code = m.Groups[2].Value.TrimEnd('\n', '\r');
-            var firstLine = code.Split('\n').FirstOrDefault()?.Trim() ?? "";
-            if (firstLine.Length > 80) firstLine = firstLine[..80] + "...";
-            results.Add((lang, code, firstLine));
+            var code = string.Join("\n", codeLines).TrimEnd('\n', '\r');
+            if (!string.IsNullOrEmpty(code))
+            {
+                var firstLine = code.Split('\n').FirstOrDefault()?.Trim() ?? "";
+                if (firstLine.Length > 80) firstLine = firstLine[..80] + "...";
+                results.Add((codeLang, code, firstLine));
+            }
+            codeLines = new List<string>();
+            codeLang = "";
         }
+
+        foreach (var rawLine in lines)
+        {
+            var line = rawLine;
+            var fenceMatch = Regex.Match(line.Trim(), @"^```(\w*)\s*$");
+            if (fenceMatch.Success)
+            {
+                if (inCodeBlock)
+                {
+                    // Closing fence
+                    Flush();
+                    inCodeBlock = false;
+                }
+                else
+                {
+                    inCodeBlock = true;
+                    codeLang = fenceMatch.Groups[1].Value;
+                }
+                continue;
+            }
+
+            if (inCodeBlock)
+                codeLines.Add(line);
+        }
+
+        // Unterminated block (e.g. cut off mid-stream) — still show what we have.
+        if (inCodeBlock)
+            Flush();
+
         return results;
     }
 

@@ -108,6 +108,11 @@ public static class MarkdownRenderer
                     tableRows.Add(row);
                     i++;
                 }
+                // If we consumed every remaining line, the table might still be
+                // streaming in (no following non-table line has arrived yet to
+                // confirm it's done) — show a "Creating Table" placeholder instead
+                // of a clickable card for a table that could still grow.
+                bool tableStillStreaming = i >= lines.Length;
                 i--; // step back for the outer loop
 
                 // Skip separator row (|---|---|)
@@ -125,7 +130,9 @@ public static class MarkdownRenderer
 
                 if (dataRows.Count > 0)
                 {
-                    blocks.Add(CreateTable(dataRows));
+                    blocks.Add(tableStillStreaming
+                        ? CreatePendingTableCard()
+                        : CreateTableCard(dataRows));
                 }
                 continue;
             }
@@ -138,6 +145,12 @@ public static class MarkdownRenderer
         // Flush last paragraph
         if (currentParagraph.Inlines.Count > 0)
             blocks.Add(currentParagraph);
+
+        // Code block still open at end of text (streaming in progress) —
+        // show a placeholder card instead of hiding the block until the
+        // closing fence arrives.
+        if (inCodeBlock)
+            blocks.Add(CreatePendingCodeCard(codeLang));
 
         return blocks;
     }
@@ -232,76 +245,336 @@ public static class MarkdownRenderer
         return results;
     }
 
-    // ─── Markdown Table ───
-
-    private static Microsoft.UI.Xaml.Documents.Paragraph CreateTable(List<List<string>> dataRows)
+    /// <summary>
+    /// Extracts all markdown pipe-tables from text as row lists (first row =
+    /// header). Mirrors the table detection in ParseBlocks. Used by TablesPage.
+    /// A table still being streamed (no line after it yet to confirm it's
+    /// finished) is intentionally skipped, matching the "Creating Table"
+    /// placeholder behavior in chat — an in-progress table shouldn't show up
+    /// as a finished entry in the Tables page.
+    /// </summary>
+    public static List<List<List<string>>> ExtractTables(string markdown)
     {
-        var paragraph = new Microsoft.UI.Xaml.Documents.Paragraph();
+        var results = new List<List<List<string>>>();
+        if (string.IsNullOrEmpty(markdown)) return results;
 
-        var border = new Microsoft.UI.Xaml.Controls.Border
+        var lines = markdown.Replace("\r\n", "\n").Split('\n');
+        int i = 0;
+        while (i < lines.Length)
         {
-            Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(
-                Windows.UI.Color.FromArgb(255, 40, 40, 45)),
-            BorderBrush = new Microsoft.UI.Xaml.Media.SolidColorBrush(
-                Windows.UI.Color.FromArgb(255, 60, 60, 65)),
-            BorderThickness = new Microsoft.UI.Xaml.Thickness(1),
-            CornerRadius = new Microsoft.UI.Xaml.CornerRadius(6),
-            Padding = new Microsoft.UI.Xaml.Thickness(0),
-            HorizontalAlignment = Microsoft.UI.Xaml.HorizontalAlignment.Left,
-            MaxWidth = 650,
-        };
-
-        var stack = new Microsoft.UI.Xaml.Controls.StackPanel();
-        var numCols = dataRows.Max(r => r.Count);
-        var colWidth = new Microsoft.UI.Xaml.GridLength(1, Microsoft.UI.Xaml.GridUnitType.Star);
-
-        int rowIndex = 0;
-        foreach (var row in dataRows)
-        {
-            bool isHeader = rowIndex == 0;
-            var rowBorder = new Microsoft.UI.Xaml.Controls.Border
+            var tableLine = lines[i].Trim();
+            if (tableLine.StartsWith("|") && tableLine.EndsWith("|"))
             {
-                Background = isHeader
-                    ? new Microsoft.UI.Xaml.Media.SolidColorBrush(
-                        Windows.UI.Color.FromArgb(255, 55, 55, 60))
-                    : (rowIndex % 2 == 0
-                        ? new Microsoft.UI.Xaml.Media.SolidColorBrush(
-                            Windows.UI.Color.FromArgb(255, 45, 45, 50))
-                        : new Microsoft.UI.Xaml.Media.SolidColorBrush(
-                            Windows.UI.Color.FromArgb(255, 40, 40, 45))),
-                Padding = new Microsoft.UI.Xaml.Thickness(12, 6, 12, 6),
-            };
-
-            var rowGrid = new Microsoft.UI.Xaml.Controls.Grid();
-            for (int c = 0; c < numCols; c++)
-                rowGrid.ColumnDefinitions.Add(new Microsoft.UI.Xaml.Controls.ColumnDefinition { Width = colWidth });
-
-            for (int c = 0; c < row.Count && c < numCols; c++)
-            {
-                var cellText = new Microsoft.UI.Xaml.Controls.TextBlock
+                var tableRows = new List<List<string>>();
+                while (i < lines.Length)
                 {
-                    Text = row[c],
-                    FontSize = isHeader ? 12 : 12,
-                    FontWeight = isHeader ? Microsoft.UI.Text.FontWeights.SemiBold : Microsoft.UI.Text.FontWeights.Normal,
-                    Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(
-                        Windows.UI.Color.FromArgb(255, 210, 210, 210)),
-                    TextWrapping = Microsoft.UI.Xaml.TextWrapping.Wrap,
-                    VerticalAlignment = Microsoft.UI.Xaml.VerticalAlignment.Center,
-                };
-                Microsoft.UI.Xaml.Controls.Grid.SetColumn(cellText, c);
-                rowGrid.Children.Add(cellText);
-            }
+                    var tLine = lines[i].Trim();
+                    if (!tLine.StartsWith("|") || !tLine.EndsWith("|")) break;
+                    var cells = tLine.Trim('|').Split('|');
+                    tableRows.Add(cells.Select(c => c.Trim()).ToList());
+                    i++;
+                }
+                bool tableStillStreaming = i >= lines.Length;
 
-            rowBorder.Child = rowGrid;
-            stack.Children.Add(rowBorder);
-            rowIndex++;
+                var dataRows = new List<List<string>>();
+                bool skippedSep = false;
+                foreach (var r in tableRows)
+                {
+                    if (!skippedSep && r.All(c => Regex.IsMatch(c, @"^:?-+:?$")))
+                    {
+                        skippedSep = true;
+                        continue;
+                    }
+                    dataRows.Add(r);
+                }
+
+                if (dataRows.Count > 0 && !tableStillStreaming)
+                    results.Add(dataRows);
+
+                continue; // i already advanced past the table
+            }
+            i++;
         }
 
-        border.Child = stack;
-        var container = new Microsoft.UI.Xaml.Documents.InlineUIContainer { Child = border };
+        return results;
+    }
+
+    // ─── Markdown Table ───
+
+    /// <summary>
+    /// Compact clickable summary card for a completed table (icon + row/column
+    /// count). Tapping it opens a dialog with the full table and export options
+    /// (copy as Markdown / save as .xlsx), instead of rendering potentially wide
+    /// tables directly inline in the narrow chat column.
+    /// </summary>
+    private static Microsoft.UI.Xaml.Documents.Paragraph CreateTableCard(List<List<string>> dataRows)
+    {
+        var paragraph = new Microsoft.UI.Xaml.Documents.Paragraph();
+        var numCols = dataRows.Max(r => r.Count);
+        var numDataRows = Math.Max(0, dataRows.Count - 1); // exclude header
+
+        var card = new Microsoft.UI.Xaml.Controls.Border
+        {
+            Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(
+                Windows.UI.Color.FromArgb(255, 30, 30, 30)),
+            BorderBrush = new Microsoft.UI.Xaml.Media.SolidColorBrush(
+                Windows.UI.Color.FromArgb(255, 60, 60, 60)),
+            BorderThickness = new Microsoft.UI.Xaml.Thickness(1),
+            CornerRadius = new Microsoft.UI.Xaml.CornerRadius(8),
+            Padding = new Microsoft.UI.Xaml.Thickness(14, 12, 14, 12),
+            HorizontalAlignment = Microsoft.UI.Xaml.HorizontalAlignment.Left,
+            MaxWidth = 360,
+        };
+
+        var row = new Microsoft.UI.Xaml.Controls.StackPanel
+        {
+            Orientation = Microsoft.UI.Xaml.Controls.Orientation.Horizontal,
+            Spacing = 10,
+        };
+
+        var icon = new Microsoft.UI.Xaml.Controls.FontIcon
+        {
+            Glyph = "\uE8EF", // ViewAll / grid-like glyph (Segoe Fluent Icons)
+            FontSize = 20,
+            Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(
+                Windows.UI.Color.FromArgb(255, 160, 160, 160)),
+            VerticalAlignment = Microsoft.UI.Xaml.VerticalAlignment.Center,
+        };
+        row.Children.Add(icon);
+
+        var textStack = new Microsoft.UI.Xaml.Controls.StackPanel { Spacing = 2 };
+        textStack.Children.Add(new Microsoft.UI.Xaml.Controls.TextBlock
+        {
+            Text = "Table",
+            FontSize = 13,
+            FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+            Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(
+                Windows.UI.Color.FromArgb(255, 220, 220, 220)),
+        });
+        textStack.Children.Add(new Microsoft.UI.Xaml.Controls.TextBlock
+        {
+            Text = $"{numDataRows} row{(numDataRows == 1 ? "" : "s")} · {numCols} column{(numCols == 1 ? "" : "s")}",
+            FontSize = 11,
+            Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(
+                Windows.UI.Color.FromArgb(255, 150, 150, 150)),
+        });
+        row.Children.Add(textStack);
+
+        var expandIcon = new Microsoft.UI.Xaml.Controls.FontIcon
+        {
+            Glyph = "\uE8A7", // chevron right
+            FontSize = 12,
+            Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(
+                Windows.UI.Color.FromArgb(255, 130, 130, 130)),
+            VerticalAlignment = Microsoft.UI.Xaml.VerticalAlignment.Center,
+            Margin = new Microsoft.UI.Xaml.Thickness(20, 0, 0, 0),
+        };
+        row.Children.Add(expandIcon);
+
+        card.Child = row;
+        card.Tapped += (s, e) => ShowTableDialog(card.XamlRoot, dataRows);
+        CursorHelper.SetHandOn(card); // hand cursor on hover — signals it's clickable
+
+        var container = new Microsoft.UI.Xaml.Documents.InlineUIContainer { Child = card };
         paragraph.Inlines.Add(container);
         paragraph.Inlines.Add(new Microsoft.UI.Xaml.Documents.LineBreak());
         return paragraph;
+    }
+
+    /// <summary>
+    /// Placeholder shown while a table is still streaming in — mirrors
+    /// CreatePendingCodeCard's look (ring progress + status text) so a table
+    /// doesn't render half-finished/jittering while more rows keep arriving.
+    /// </summary>
+    private static Microsoft.UI.Xaml.Documents.Paragraph CreatePendingTableCard()
+    {
+        var paragraph = new Microsoft.UI.Xaml.Documents.Paragraph();
+
+        var card = new Microsoft.UI.Xaml.Controls.Border
+        {
+            Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(
+                Windows.UI.Color.FromArgb(255, 30, 30, 30)),
+            BorderBrush = new Microsoft.UI.Xaml.Media.SolidColorBrush(
+                Windows.UI.Color.FromArgb(255, 60, 60, 60)),
+            BorderThickness = new Microsoft.UI.Xaml.Thickness(1),
+            CornerRadius = new Microsoft.UI.Xaml.CornerRadius(8),
+            Padding = new Microsoft.UI.Xaml.Thickness(14, 12, 14, 12),
+            HorizontalAlignment = Microsoft.UI.Xaml.HorizontalAlignment.Left,
+            MaxWidth = 360,
+        };
+
+        var row = new Microsoft.UI.Xaml.Controls.StackPanel
+        {
+            Orientation = Microsoft.UI.Xaml.Controls.Orientation.Horizontal,
+            Spacing = 10,
+        };
+
+        var ring = new Microsoft.UI.Xaml.Controls.ProgressRing
+        {
+            IsActive = true,
+            Width = 18,
+            Height = 18,
+            Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(
+                Windows.UI.Color.FromArgb(255, 160, 160, 160)),
+        };
+        row.Children.Add(ring);
+
+        var statusText = new Microsoft.UI.Xaml.Controls.TextBlock
+        {
+            Text = "Creating Table",
+            FontSize = 13,
+            Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(
+                Windows.UI.Color.FromArgb(255, 200, 200, 200)),
+            VerticalAlignment = Microsoft.UI.Xaml.VerticalAlignment.Center,
+        };
+        row.Children.Add(statusText);
+
+        card.Child = row;
+        var container = new Microsoft.UI.Xaml.Documents.InlineUIContainer { Child = card };
+        paragraph.Inlines.Add(container);
+        paragraph.Inlines.Add(new Microsoft.UI.Xaml.Documents.LineBreak());
+        return paragraph;
+    }
+
+    /// <summary>
+    /// Full-table dialog opened by tapping a table card: scrollable grid of
+    /// the actual data, plus "Copy as Markdown" and "Export as .xlsx" actions.
+    /// Public so TablesPage can reuse it for its own "View" button.
+    /// </summary>
+    public static async void ShowTableDialog(Microsoft.UI.Xaml.XamlRoot? xamlRoot, List<List<string>> dataRows)
+    {
+        if (xamlRoot == null) return;
+
+        var numCols = dataRows.Max(r => r.Count);
+        var scrollViewer = new Microsoft.UI.Xaml.Controls.ScrollViewer
+        {
+            HorizontalScrollBarVisibility = Microsoft.UI.Xaml.Controls.ScrollBarVisibility.Auto,
+            VerticalScrollBarVisibility = Microsoft.UI.Xaml.Controls.ScrollBarVisibility.Auto,
+            MaxHeight = 420,
+        };
+
+        var grid = new Microsoft.UI.Xaml.Controls.Grid();
+        for (int c = 0; c < numCols; c++)
+            grid.ColumnDefinitions.Add(new Microsoft.UI.Xaml.Controls.ColumnDefinition { Width = Microsoft.UI.Xaml.GridLength.Auto });
+        for (int r = 0; r < dataRows.Count; r++)
+            grid.RowDefinitions.Add(new Microsoft.UI.Xaml.Controls.RowDefinition { Height = Microsoft.UI.Xaml.GridLength.Auto });
+
+        for (int r = 0; r < dataRows.Count; r++)
+        {
+            bool isHeader = r == 0;
+            for (int c = 0; c < numCols; c++)
+            {
+                var cellValue = c < dataRows[r].Count ? dataRows[r][c] : "";
+                var cellBorder = new Microsoft.UI.Xaml.Controls.Border
+                {
+                    Background = isHeader
+                        ? new Microsoft.UI.Xaml.Media.SolidColorBrush(Windows.UI.Color.FromArgb(255, 55, 55, 60))
+                        : (r % 2 == 0
+                            ? new Microsoft.UI.Xaml.Media.SolidColorBrush(Windows.UI.Color.FromArgb(255, 45, 45, 50))
+                            : new Microsoft.UI.Xaml.Media.SolidColorBrush(Windows.UI.Color.FromArgb(255, 40, 40, 45))),
+                    BorderBrush = new Microsoft.UI.Xaml.Media.SolidColorBrush(Windows.UI.Color.FromArgb(255, 60, 60, 65)),
+                    BorderThickness = new Microsoft.UI.Xaml.Thickness(0, 0, 1, 1),
+                    Padding = new Microsoft.UI.Xaml.Thickness(12, 6, 12, 6),
+                    MinWidth = 100,
+                };
+                cellBorder.Child = new Microsoft.UI.Xaml.Controls.TextBlock
+                {
+                    Text = cellValue,
+                    FontSize = 12,
+                    FontWeight = isHeader ? Microsoft.UI.Text.FontWeights.SemiBold : Microsoft.UI.Text.FontWeights.Normal,
+                    Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(Windows.UI.Color.FromArgb(255, 210, 210, 210)),
+                    TextWrapping = Microsoft.UI.Xaml.TextWrapping.NoWrap,
+                };
+                Microsoft.UI.Xaml.Controls.Grid.SetRow(cellBorder, r);
+                Microsoft.UI.Xaml.Controls.Grid.SetColumn(cellBorder, c);
+                grid.Children.Add(cellBorder);
+            }
+        }
+
+        scrollViewer.Content = grid;
+
+        var statusText = new Microsoft.UI.Xaml.Controls.TextBlock
+        {
+            FontSize = 12,
+            Margin = new Microsoft.UI.Xaml.Thickness(0, 8, 0, 0),
+            Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(Windows.UI.Color.FromArgb(255, 150, 150, 150)),
+        };
+
+        var copyMdBtn = new Microsoft.UI.Xaml.Controls.Button { Content = "Copy as Markdown" };
+        copyMdBtn.Click += (s, e) =>
+        {
+            try
+            {
+                var md = TableExportHelper.ToMarkdown(dataRows);
+                var dataPackage = new Windows.ApplicationModel.DataTransfer.DataPackage();
+                dataPackage.SetText(md);
+                Windows.ApplicationModel.DataTransfer.Clipboard.SetContent(dataPackage);
+                statusText.Text = "Copied to clipboard.";
+            }
+            catch (Exception ex)
+            {
+                statusText.Text = $"Copy failed: {ex.Message}";
+            }
+        };
+
+        var exportXlsxBtn = new Microsoft.UI.Xaml.Controls.Button { Content = "Export as .xlsx" };
+        exportXlsxBtn.Click += async (s, e) =>
+        {
+            try
+            {
+                if (App.MainWindow == null)
+                {
+                    statusText.Text = "Export failed: main window not available.";
+                    return;
+                }
+
+                var picker = new Windows.Storage.Pickers.FileSavePicker();
+                picker.FileTypeChoices.Add("Excel Workbook", new List<string> { ".xlsx" });
+                picker.SuggestedFileName = "table";
+                var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(App.MainWindow);
+
+                // Use reflection to call IInitializeWithWindow.Initialize — avoids
+                // CS0030 (local IInitializeWithWindow conflicts with the picker's
+                // own implementation), same workaround already used for
+                // FolderPicker in SettingsPage.Browse_Click.
+                var iidType = picker.GetType().GetInterface("IInitializeWithWindow");
+                iidType?.GetMethod("Initialize")?.Invoke(picker, new object[] { hwnd });
+
+                var file = await picker.PickSaveFileAsync();
+                if (file != null)
+                {
+                    TableExportHelper.WriteXlsx(file.Path, dataRows);
+                    statusText.Text = $"Saved to {file.Path}";
+                }
+            }
+            catch (Exception ex)
+            {
+                statusText.Text = $"Export failed: {ex.Message}";
+            }
+        };
+
+        var buttonPanel = new Microsoft.UI.Xaml.Controls.StackPanel
+        {
+            Orientation = Microsoft.UI.Xaml.Controls.Orientation.Horizontal,
+            Spacing = 8,
+            Margin = new Microsoft.UI.Xaml.Thickness(0, 12, 0, 0),
+        };
+        buttonPanel.Children.Add(copyMdBtn);
+        buttonPanel.Children.Add(exportXlsxBtn);
+
+        var content = new Microsoft.UI.Xaml.Controls.StackPanel();
+        content.Children.Add(scrollViewer);
+        content.Children.Add(buttonPanel);
+        content.Children.Add(statusText);
+
+        var dialog = new Microsoft.UI.Xaml.Controls.ContentDialog
+        {
+            Title = "Table",
+            Content = content,
+            CloseButtonText = "Close",
+            XamlRoot = xamlRoot,
+        };
+        await dialog.ShowAsync();
     }
 
     // ─── Horizontal Rule ───
@@ -429,6 +702,92 @@ public static class MarkdownRenderer
         card.Child = stack;
 
         // Wrap in InlineUIContainer
+        var container = new Microsoft.UI.Xaml.Documents.InlineUIContainer { Child = card };
+        paragraph.Inlines.Add(container);
+        paragraph.Inlines.Add(new Microsoft.UI.Xaml.Documents.LineBreak());
+
+        return paragraph;
+    }
+
+    /// <summary>
+    /// Placeholder card shown while a fenced code block is still streaming in
+    /// (opening ``` seen, closing ``` not yet received). Same visual shell as
+    /// CreateCodeCard but with a ring progress spinner + "Creating Code" text
+    /// instead of the code itself, since there's nothing final to show yet.
+    /// </summary>
+    private static Microsoft.UI.Xaml.Documents.Paragraph CreatePendingCodeCard(string language)
+    {
+        var paragraph = new Microsoft.UI.Xaml.Documents.Paragraph();
+
+        var card = new Microsoft.UI.Xaml.Controls.Border
+        {
+            Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(
+                Windows.UI.Color.FromArgb(255, 30, 30, 30)),
+            BorderBrush = new Microsoft.UI.Xaml.Media.SolidColorBrush(
+                Windows.UI.Color.FromArgb(255, 60, 60, 60)),
+            BorderThickness = new Microsoft.UI.Xaml.Thickness(1),
+            CornerRadius = new Microsoft.UI.Xaml.CornerRadius(8),
+            Padding = new Microsoft.UI.Xaml.Thickness(0),
+            HorizontalAlignment = Microsoft.UI.Xaml.HorizontalAlignment.Left,
+            MaxWidth = 650,
+        };
+
+        var stack = new Microsoft.UI.Xaml.Controls.StackPanel();
+
+        // Header: language label (matches CreateCodeCard's header so the
+        // card doesn't visually "jump" once the real code card replaces it)
+        var headerPanel = new Microsoft.UI.Xaml.Controls.Grid
+        {
+            Padding = new Microsoft.UI.Xaml.Thickness(12, 6, 12, 6),
+            Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(
+                Windows.UI.Color.FromArgb(255, 45, 45, 45)),
+        };
+        headerPanel.ColumnDefinitions.Add(new Microsoft.UI.Xaml.Controls.ColumnDefinition { Width = new Microsoft.UI.Xaml.GridLength(1, Microsoft.UI.Xaml.GridUnitType.Star) });
+
+        var langText = new Microsoft.UI.Xaml.Controls.TextBlock
+        {
+            Text = string.IsNullOrEmpty(language) ? "code" : language,
+            FontSize = 12,
+            FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+            Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(
+                Windows.UI.Color.FromArgb(255, 160, 160, 160)),
+            VerticalAlignment = Microsoft.UI.Xaml.VerticalAlignment.Center,
+        };
+        Microsoft.UI.Xaml.Controls.Grid.SetColumn(langText, 0);
+        headerPanel.Children.Add(langText);
+        stack.Children.Add(headerPanel);
+
+        // Body: ring progress + "Creating Code" text
+        var bodyPanel = new Microsoft.UI.Xaml.Controls.StackPanel
+        {
+            Orientation = Microsoft.UI.Xaml.Controls.Orientation.Horizontal,
+            Spacing = 10,
+            Padding = new Microsoft.UI.Xaml.Thickness(14, 14, 14, 14),
+        };
+
+        var ring = new Microsoft.UI.Xaml.Controls.ProgressRing
+        {
+            IsActive = true,
+            Width = 18,
+            Height = 18,
+            Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(
+                Windows.UI.Color.FromArgb(255, 160, 160, 160)),
+        };
+        bodyPanel.Children.Add(ring);
+
+        var statusText = new Microsoft.UI.Xaml.Controls.TextBlock
+        {
+            Text = "Creating Code",
+            FontSize = 13,
+            Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(
+                Windows.UI.Color.FromArgb(255, 200, 200, 200)),
+            VerticalAlignment = Microsoft.UI.Xaml.VerticalAlignment.Center,
+        };
+        bodyPanel.Children.Add(statusText);
+
+        stack.Children.Add(bodyPanel);
+        card.Child = stack;
+
         var container = new Microsoft.UI.Xaml.Documents.InlineUIContainer { Child = card };
         paragraph.Inlines.Add(container);
         paragraph.Inlines.Add(new Microsoft.UI.Xaml.Documents.LineBreak());

@@ -710,14 +710,22 @@ public sealed partial class HomePage : Page
     }
 
     /// <summary>
-    /// Notifies the ArtifactsPage (if registered) to refresh with latest messages.
-    /// ArtifactsPage registers/unregisters itself via OnNavigatedTo/From.
+    /// Notifies the ArtifactsPage and TablesPage (if registered) to refresh
+    /// with latest messages. Both pages register/unregister themselves via
+    /// OnNavigatedTo/From, same pattern, so a single call here keeps them
+    /// both in sync with the last completed response (streaming or Multi-Agent).
     /// </summary>
     private void NotifyArtifactsRefresh()
     {
         try
         {
             App.ArtifactsRefreshCallback?.Invoke(_messages);
+        }
+        catch { }
+
+        try
+        {
+            App.TablesRefreshCallback?.Invoke(_messages);
         }
         catch { }
     }

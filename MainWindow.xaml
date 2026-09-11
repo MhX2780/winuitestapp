@@ -33,6 +33,11 @@
                     <FontIcon Glyph="&#xE943;" FontSize="16" />
                 </NavigationViewItem.Icon>
             </NavigationViewItem>
+            <NavigationViewItem Content="Tables" Tag="tables" ToolTipService.ToolTip="Tables">
+                <NavigationViewItem.Icon>
+                    <FontIcon Glyph="&#xE8EF;" FontSize="16" />
+                </NavigationViewItem.Icon>
+            </NavigationViewItem>
         </NavigationView.MenuItems>
 
         <NavigationView.FooterMenuItems>

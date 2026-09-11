@@ -14,6 +14,11 @@ public partial class App : Application
     /// </summary>
     public static Action<List<ChatMessage>>? ArtifactsRefreshCallback;
 
+    /// <summary>
+    /// Same pattern as ArtifactsRefreshCallback, for the dedicated Tables page.
+    /// </summary>
+    public static Action<List<ChatMessage>>? TablesRefreshCallback;
+
     public App()
     {
         this.InitializeComponent();

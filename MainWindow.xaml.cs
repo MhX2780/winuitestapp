@@ -253,6 +253,7 @@ public sealed partial class MainWindow : Window
         {
             "home" => typeof(HomePage),
             "artifacts" => typeof(ArtifactsPage),
+            "tables" => typeof(TablesPage),
             "settings" => typeof(SettingsPage),
             _ => typeof(HomePage),
         };

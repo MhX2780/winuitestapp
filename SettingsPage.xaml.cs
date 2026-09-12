@@ -37,6 +37,7 @@ public sealed partial class SettingsPage : Page
             var s = ConfigManager.Settings;
             ApiKeyBox.Password = ConfigManager.LoadSavedApiKey();
             KeyStatus.Text = string.IsNullOrEmpty(ApiKeyBox.Password) ? "No API key set." : "API key saved.";
+            CrashLogger.Log("INFO", "LoadUI: api key section done");
 
             // Set model combo
             for (int i = 0; i < ModelCombo.Items.Count; i++)
@@ -48,18 +49,22 @@ public sealed partial class SettingsPage : Page
                     break;
                 }
             }
+            CrashLogger.Log("INFO", "LoadUI: ModelCombo selection done");
 
             ModelChainBreadcrumb.ItemsSource = ConfigManager.ModelChain.Select(m => m.Name).ToArray();
             WorkspaceBox.Text = s.WorkspacePath;
             UpdateWsStatus();
+            CrashLogger.Log("INFO", "LoadUI: workspace section done");
 
             // Show log path
             LogPathText.Text = $"Logs: {CrashLogger.LogFilePath}";
+            CrashLogger.Log("INFO", "LoadUI: log path text done");
 
             // Providers
             ClaudeKeyBox.Password = ConfigManager.LoadProviderApiKey("claude");
             OpenAIKeyBox.Password = ConfigManager.LoadProviderApiKey("openai");
             PuterTokenBox.Password = ConfigManager.LoadPuterToken();
+            CrashLogger.Log("INFO", "LoadUI: provider keys done");
 
             // Puter.js settings
             PuterChat.IsOn = s.PuterChatEnabled;
@@ -67,36 +72,47 @@ public sealed partial class SettingsPage : Page
             PuterToolCalling.IsOn = s.PuterToolCallingEnabled;
             PuterImageTools.IsOn = s.PuterImageToolsEnabled;
             PuterDeepThinking.IsOn = s.PuterDeepThinkingEnabled;
+            CrashLogger.Log("INFO", "LoadUI: puter toggles done");
             // Puter model AutoSuggestBoxes — just set Text directly (no ComboBox)
             PuterModelBox.Text = s.PuterFreeChatModel;
             PuterVisionBox.Text = s.PuterVisionModel;
             PuterImageGenBox.Text = s.PuterImageGenModel;
+            CrashLogger.Log("INFO", "LoadUI: puter autosuggest text done");
             SetCombo(PuterEffortCombo, s.PuterDeepThinkingEffort);
+            CrashLogger.Log("INFO", "LoadUI: puter effort combo done");
 
             // Memory
             SystemPromptBox.Text = s.SystemPromptOverride;
             MaxHistory.Value = s.MaxHistoryMessages;
+            CrashLogger.Log("INFO", "LoadUI: memory section done");
 
             // Deep Thinking
             DeepThinking.IsOn = s.DeepThinkingEnabled;
             ThinkBudget.Value = s.DeepThinkingBudget;
             ThinkInclude.IsOn = s.DeepThinkingIncludeThoughts;
+            CrashLogger.Log("INFO", "LoadUI: deep thinking section done");
 
             // Multi-Agent
             MultiAgent.IsOn = s.MultiAgentEnabled;
+            CrashLogger.Log("INFO", "LoadUI: multi-agent toggle done");
             SetCombo(ClassifierCombo, s.MultiAgentRoles?.GetValueOrDefault("classifier") ?? "gemini-2.5-flash-lite");
+            CrashLogger.Log("INFO", "LoadUI: classifier combo done");
             SetCombo(PlannerCombo, s.MultiAgentRoles?.GetValueOrDefault("planner") ?? "gemini-3.6-flash");
+            CrashLogger.Log("INFO", "LoadUI: planner combo done");
             SetCombo(ExecutorCombo, s.MultiAgentRoles?.GetValueOrDefault("executor") ?? "gemini-3.5-flash");
+            CrashLogger.Log("INFO", "LoadUI: executor combo done");
             SetCombo(ReviewerCombo, s.MultiAgentRoles?.GetValueOrDefault("reviewer") ?? "gemini-2.5-flash-lite");
+            CrashLogger.Log("INFO", "LoadUI: reviewer combo done");
 
             // Theme
             SetThemeCombo(s.ThemeMode);
+            CrashLogger.Log("INFO", "LoadUI: theme combo done");
 
             _isLoadingUI = false;
         }
         catch (Exception ex)
         {
-            CrashLogger.Log("ERROR", $"LoadUI failed: {ex.Message}");
+            CrashLogger.Log("ERROR", $"LoadUI failed: {ex.GetType().Name}: {ex.Message}\n{ex.StackTrace}");
             _isLoadingUI = false;
         }
     }
@@ -105,11 +121,31 @@ public sealed partial class SettingsPage : Page
     {
         var p = WorkspaceBox.Text?.Trim();
         if (string.IsNullOrEmpty(p))
+        {
             WorkspaceStatus.Text = $"Default: {ConfigManager.WorkspaceDir}";
-        else if (Directory.Exists(p))
-            WorkspaceStatus.Text = "Directory exists.";
-        else
-            WorkspaceStatus.Text = "Will be created on first use.";
+            return;
+        }
+
+        // Directory.Exists() blocks the UI thread for a long time (can be many
+        // seconds) when the path points at an unreachable network/UNC location
+        // — this froze the whole Settings page on load if a stale workspace
+        // path was saved. Run the check off the UI thread instead.
+        WorkspaceStatus.Text = "Checking...";
+        var pathToCheck = p;
+        _ = System.Threading.Tasks.Task.Run(() =>
+        {
+            bool exists;
+            try { exists = Directory.Exists(pathToCheck); }
+            catch { exists = false; }
+
+            DispatcherQueue.TryEnqueue(() =>
+            {
+                // Only apply if the box still shows the path we checked
+                // (user may have typed something else while this was running).
+                if (WorkspaceBox.Text?.Trim() == pathToCheck)
+                    WorkspaceStatus.Text = exists ? "Directory exists." : "Will be created on first use.";
+            });
+        });
     }
 
     private async void Browse_Click(object sender, RoutedEventArgs e)
